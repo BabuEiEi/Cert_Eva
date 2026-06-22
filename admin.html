@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบผู้ดูแล - เกียรติบัตร</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Sarabun', sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .menu-item.active { background-color: #1a73e8; color: white; }
+    .menu-item.active:hover { background-color: #1557b0; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- ============ หน้า Login ============ -->
+  <div id="loginPage" class="fixed inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+      <div class="text-center mb-6">
+        <div class="text-5xl mb-3">🔐</div>
+        <h1 class="text-2xl font-bold text-gray-800">ระบบผู้ดูแล</h1>
+        <p class="text-gray-500 text-sm mt-1">กรุณาเข้าสู่ระบบ</p>
+      </div>
+      <form onsubmit="doLogin(event)">
+        <input type="password" id="passwordInput" placeholder="รหัสผ่าน"
+               class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-4"
+               required>
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition">
+          เข้าสู่ระบบ
+        </button>
+      </form>
+      <a href="index.html" class="block text-center text-sm text-blue-600 hover:underline mt-4">
+        → ไปหน้าค้นหาเกียรติบัตร (User)
+      </a>
+    </div>
+  </div>
+
+  <!-- ============ หน้าหลัก (หลัง Login) ============ -->
+  <div id="mainApp" class="hidden">
+    <div class="flex h-screen">
+
+      <!-- ===== Sidebar ===== -->
+      <aside class="w-64 bg-white shadow-lg flex flex-col flex-shrink-0">
+        <div class="p-5 border-b">
+          <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center text-xl">🎓</div>
+            <div>
+              <h1 class="font-bold text-gray-800">ระบบผู้ดูแล</h1>
+              <p class="text-xs text-gray-500" id="userRole"></p>
+            </div>
+          </div>
+        </div>
+
+        <nav class="flex-1 p-3 space-y-1 overflow-y-auto" id="menuNav">
+          <button onclick="showPage('dashboard')" data-menu="dashboard"
+                  class="menu-item w-full text-left px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-3">
+            <span>📊</span> Dashboard
+          </button>
+          <button onclick="showPage('certificates')" data-menu="certificates"
+                  class="menu-item w-full text-left px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-3">
+            <span>📜</span> รายชื่อเกียรติบัตร
+          </button>
+          <button onclick="showPage('questions')" data-menu="questions" data-admin-staff
+                  class="menu-item w-full text-left px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-3">
+            <span>❓</span> คำถามแบบประเมิน
+          </button>
+          <button onclick="showPage('results')" data-menu="results"
+                  class="menu-item w-full text-left px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-3">
+            <span>📈</span> ผลการประเมิน
+          </button>
+          <button onclick="showPage('settings')" data-menu="settings" data-admin-only
+                  class="menu-item w-full text-left px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-3">
+            <span>⚙️</span> ตั้งค่าระบบ
+          </button>
+        </nav>
+
+        <div class="p-3 border-t">
+          <a href="index.html" class="block text-center text-xs text-gray-500 hover:text-blue-600 mb-2">🔍 หน้าค้นหา (User)</a>
+          <button onclick="doLogout()"
+                  class="w-full px-4 py-2 rounded-xl text-red-600 hover:bg-red-50 transition flex items-center justify-center gap-2 text-sm">
+            <span>🚪</span> ออกจากระบบ
+          </button>
+        </div>
+      </aside>
+
+      <!-- ===== Content Area ===== -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-white shadow-sm px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <h2 class="text-xl font-semibold text-gray-800" id="pageTitle">Dashboard</h2>
+          <button onclick="refreshCurrentPage()" class="text-gray-500 hover:text-blue-600 text-sm flex items-center gap-1">
+            🔄 รีเฟรช
+          </button>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-6">
+          <!-- หน้า: Dashboard -->
+          <div id="page-dashboard" class="page-content"></div>
+          <!-- หน้า: รายชื่อเกียรติบัตร -->
+          <div id="page-certificates" class="page-content hidden"></div>
+          <!-- หน้า: คำถามแบบประเมิน -->
+          <div id="page-questions" class="page-content hidden"></div>
+          <!-- หน้า: ผลการประเมิน -->
+          <div id="page-results" class="page-content hidden"></div>
+          <!-- หน้า: ตั้งค่าระบบ -->
+          <div id="page-settings" class="page-content hidden"></div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Modal (สำหรับเพิ่ม/แก้คำถาม) ============ -->
+  <div id="modal" class="fixed inset-0 bg-black/40 items-center justify-center z-50 hidden p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
+      <div class="flex items-center justify-between p-5 border-b sticky top-0 bg-white">
+        <h3 class="text-lg font-semibold" id="modalTitle">เพิ่มคำถาม</h3>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+      </div>
+      <div class="p-5" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ Loading + Toast ============ -->
+  <div id="loading" class="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-2xl">
+      <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-gray-600 font-medium" id="loadingText">กำลังโหลด...</p>
+    </div>
+  </div>
+  <div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
+    <div id="toastBox" class="px-5 py-3 rounded-xl shadow-lg text-white font-medium"></div>
+  </div>
+
+  <script>
+    // ============================================================
+    //  ตั้งค่า: ใส่ Web App URL ของคุณตรงนี้ (เหมือน index.html)
+    // ============================================================
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxWSqRuz6oHlULw0Hl8DBEeRH_-bD9u0NuwARLU1MTM_FybOSUovRWrGZ2IClN2H4h4aw/exec'; // TODO: วาง Web App URL
+
+    let currentUser = { role: '', displayName: '' };
+    let currentPage = 'dashboard';
+    let questionsData = [];
+
+    // ============ ฟังก์ชันเรียก API ============
+    async function callApi(action, params = {}, method = 'GET') {
+      try {
+        if (method === 'GET') {
+          const query = new URLSearchParams(Object.assign({ action }, params)).toString();
+          const res = await fetch(API_URL + '?' + query);
+          return await res.json();
+        } else {
+          const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, params)) });
+          return await res.json();
+        }
+      } catch (err) {
+        return { success: false, message: 'เชื่อมต่อไม่สำเร็จ: ' + err.message };
+      }
+    }
+
+    // ============ UI Helper ============
+    function showLoading(t = 'กำลังโหลด...') { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.remove('hidden'); }
+    function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+    function showToast(msg, type = 'success') {
+      const box = document.getElementById('toastBox');
+      box.className = 'px-5 py-3 rounded-xl shadow-lg text-white font-medium ' + (type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600');
+      box.textContent = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : 'ℹ ') + msg;
+      document.getElementById('toast').classList.remove('hidden');
+      setTimeout(() => document.getElementById('toast').classList.add('hidden'), 3500);
+    }
+
+    // ============ Login / Logout ============
+    async function doLogin(event) {
+      event.preventDefault();
+      const password = document.getElementById('passwordInput').value;
+      showLoading('กำลังเข้าสู่ระบบ...');
+      const res = await callApi('login', { password });
+      hideLoading();
+
+      if (res.success) {
+        currentUser = { role: res.role, displayName: res.displayName };
+        sessionStorage.setItem('certAdminUser', JSON.stringify(currentUser));
+        enterApp();
+      } else {
+        showToast(res.message || 'รหัสผ่านไม่ถูกต้อง', 'error');
+      }
+    }
+
+    function doLogout() {
+      sessionStorage.removeItem('certAdminUser');
+      location.reload();
+    }
+
+    function enterApp() {
+      document.getElementById('loginPage').classList.add('hidden');
+      document.getElementById('mainApp').classList.remove('hidden');
+      document.getElementById('userRole').textContent =
+        (currentUser.role === 'admin' ? '👑 ' : '👤 ') + currentUser.displayName;
+
+      // ===== ซ่อนเมนูตาม role =====
+      if (currentUser.role === 'staff') {
+        // Staff: ซ่อนเมนู admin-only (ตั้งค่าระบบ)
+        document.querySelectorAll('[data-admin-only]').forEach(el => el.classList.add('hidden'));
+      }
+      // admin เห็นครบทุกเมนู
+
+      showPage('dashboard');
+    }
+
+    // ============ Navigation ============
+    function showPage(page) {
+      // เช็คสิทธิ์: staff ห้ามเข้า settings
+      if (page === 'settings' && currentUser.role !== 'admin') {
+        showToast('คุณไม่มีสิทธิ์เข้าถึงหน้านี้', 'error');
+        return;
+      }
+
+      currentPage = page;
+      document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('page-' + page).classList.remove('hidden');
+
+      document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+      document.querySelector(`[data-menu="${page}"]`).classList.add('active');
+
+      const titles = { dashboard: 'Dashboard', certificates: 'รายชื่อเกียรติบัตร', questions: 'คำถามแบบประเมิน', results: 'ผลการประเมิน', settings: 'ตั้งค่าระบบ' };
+      document.getElementById('pageTitle').textContent = titles[page];
+
+      // โหลดข้อมูลของหน้านั้น
+      const loaders = { dashboard: loadDashboard, certificates: loadCertificates, questions: loadQuestions, results: loadResults, settings: loadSettings };
+      loaders[page]();
+    }
+
+    function refreshCurrentPage() { showPage(currentPage); }
+
+    // ============================================================
+    //  หน้า 1: Dashboard
+    // ============================================================
+    async function loadDashboard() {
+      const el = document.getElementById('page-dashboard');
+      el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
+      const res = await callApi('getDashboard');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+
+      el.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+          ${statCard('📜', 'เกียรติบัตรทั้งหมด', res.totalCertificates, 'blue')}
+          ${statCard('✅', 'ประเมินแล้ว', res.totalResponses, 'green')}
+          ${statCard('⏳', 'ยังไม่ประเมิน', res.notEvaluated, 'yellow')}
+          ${statCard('📄', 'สร้างไฟล์แล้ว', res.generated, 'purple')}
+        </div>
+        <div class="bg-white rounded-2xl shadow p-6">
+          <h3 class="font-semibold text-gray-800 mb-4">📊 คะแนนความพึงพอใจเฉลี่ย (ภาพรวม)</h3>
+          <div class="flex items-center gap-6">
+            <div class="text-5xl font-bold text-blue-600">${res.avgScore.toFixed(2)}</div>
+            <div>
+              <p class="text-gray-500 text-sm">จากคะแนนเต็ม 5.00</p>
+              <span class="inline-block mt-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                ระดับ: ${res.avgInterpret}
+              </span>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function statCard(icon, label, value, color) {
+      const colors = { blue: 'border-blue-500', green: 'border-green-500', yellow: 'border-yellow-500', purple: 'border-purple-500' };
+      return `<div class="bg-white rounded-2xl shadow p-5 border-l-4 ${colors[color]}">
+        <div class="text-3xl mb-2">${icon}</div>
+        <div class="text-2xl font-bold text-gray-800">${value}</div>
+        <div class="text-sm text-gray-500">${label}</div>
+      </div>`;
+    }
+
+    // ============================================================
+    //  หน้า 2: รายชื่อเกียรติบัตร
+    // ============================================================
+    async function loadCertificates() {
+      const el = document.getElementById('page-certificates');
+      el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
+      const res = await callApi('getCertificates');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+
+      let rows = '';
+      res.data.forEach(c => {
+        const badge = getStatusBadge(c.status);
+        const fileBtn = c.fileUrl
+          ? `<a href="${c.fileUrl}" target="_blank" class="text-blue-600 hover:underline text-xs">เปิดไฟล์</a>`
+          : `<button onclick="genOne('${c.certNo}')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-xs">สร้าง</button>`;
+        rows += `<tr class="border-b hover:bg-gray-50">
+          <td class="px-4 py-3">${c.runNo}</td>
+          <td class="px-4 py-3 font-medium">${c.certNo}</td>
+          <td class="px-4 py-3">${c.prefix || ''}${c.fullName}</td>
+          <td class="px-4 py-3 text-gray-600">${c.school}</td>
+          <td class="px-4 py-3">${badge}</td>
+          <td class="px-4 py-3 text-center">${fileBtn}</td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+          <p class="text-gray-500 text-sm">ทั้งหมด ${res.count} รายการ</p>
+          <button onclick="genAll()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+            <span>⚡</span> สร้างเกียรติบัตรทั้งหมด
+          </button>
+        </div>
+        <div class="bg-white rounded-2xl shadow overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 text-gray-600 text-left">
+                <tr>
+                  <th class="px-4 py-3">No.</th><th class="px-4 py-3">เลขที่</th>
+                  <th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3">โรงเรียน</th>
+                  <th class="px-4 py-3">สถานะ</th><th class="px-4 py-3 text-center">ไฟล์</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    async function genOne(certNo) {
+      showLoading('กำลังสร้างเกียรติบัตร...');
+      const res = await callApi('generateCertificate', { certNo });
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) loadCertificates();
+    }
+
+    async function genAll() {
+      if (!confirm('ต้องการสร้างเกียรติบัตรทั้งหมดที่ยังไม่มีไฟล์ใช่หรือไม่?\n(อาจใช้เวลาสักครู่)')) return;
+      showLoading('กำลังสร้างเกียรติบัตรทั้งหมด...');
+      const res = await callApi('generateAll');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) loadCertificates();
+    }
+
+    function getStatusBadge(status) {
+      const map = { 'ยังไม่ประเมิน': 'bg-yellow-100 text-yellow-700', 'ประเมินแล้ว': 'bg-blue-100 text-blue-700', 'พร้อมดาวน์โหลด': 'bg-green-100 text-green-700' };
+      return `<span class="px-3 py-1 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}">${status}</span>`;
+    }
+
+    // ============================================================
+    //  หน้า 3: คำถามแบบประเมิน
+    // ============================================================
+    async function loadQuestions() {
+      const el = document.getElementById('page-questions');
+      el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
+      const res = await callApi('getQuestions');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+      questionsData = res.data;
+
+      // จัดกลุ่มตาม part
+      const parts = {};
+      res.data.forEach(q => { if (!parts[q.part]) parts[q.part] = []; parts[q.part].push(q); });
+
+      let html = `<div class="flex justify-between items-center mb-4">
+        <p class="text-gray-500 text-sm">ทั้งหมด ${res.data.length} ข้อ</p>
+        <button onclick="openQuestionModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+          <span>➕</span> เพิ่มคำถาม
+        </button>
+      </div>`;
+
+      Object.keys(parts).forEach(partName => {
+        html += `<div class="bg-white rounded-2xl shadow mb-4 overflow-hidden">
+          <div class="bg-blue-50 px-5 py-3 border-b">
+            <h3 class="font-semibold text-blue-800">${partName}: ${parts[partName][0].section}</h3>
+          </div>
+          <div class="divide-y">`;
+        parts[partName].forEach(q => {
+          const typeLabel = { radio: 'ตัวเลือก', rating: 'ให้คะแนน 1-5', textarea: 'ข้อความ' }[q.questionType] || q.questionType;
+          html += `<div class="px-5 py-3 flex items-start justify-between gap-3 hover:bg-gray-50">
+            <div class="flex-1">
+              <p class="text-gray-800"><span class="text-gray-400">${q.orderNo}.</span> ${q.questionText}
+                ${q.required ? '<span class="text-red-500">*</span>' : ''}</p>
+              <div class="flex flex-wrap gap-2 mt-1">
+                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">${typeLabel}</span>
+                ${q.category ? `<span class="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded">${q.category}</span>` : ''}
+              </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+              <button onclick='editQuestion(${JSON.stringify(q)})' class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-sm">✏️</button>
+              <button onclick="deleteQuestion('${q.questionId}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded text-sm">🗑️</button>
+            </div>
+          </div>`;
+        });
+        html += `</div></div>`;
+      });
+
+      el.innerHTML = html;
+    }
+
+    function openQuestionModal(q = null) {
+      const isEdit = !!q;
+      document.getElementById('modalTitle').textContent = isEdit ? 'แก้ไขคำถาม' : 'เพิ่มคำถาม';
+      document.getElementById('modalBody').innerHTML = `
+        <form onsubmit="saveQuestion(event)" class="space-y-4">
+          <input type="hidden" id="q_id" value="${isEdit ? q.questionId : ''}">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ตอน (Part)</label>
+            <input type="text" id="q_part" value="${isEdit ? q.part : ''}" placeholder="เช่น ตอนที่ 1" required class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">หัวข้อ (Section)</label>
+            <input type="text" id="q_section" value="${isEdit ? q.section : ''}" placeholder="เช่น ทั่วไป" required class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">หมวดย่อย (Category)</label>
+            <input type="text" id="q_category" value="${isEdit ? q.category : ''}" placeholder="เช่น วิทยากร" class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">คำถาม</label>
+            <textarea id="q_text" rows="2" required class="w-full px-3 py-2 border rounded-lg">${isEdit ? q.questionText : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ชนิดคำถาม</label>
+            <select id="q_type" onchange="toggleChoices()" class="w-full px-3 py-2 border rounded-lg">
+              <option value="radio" ${isEdit && q.questionType==='radio'?'selected':''}>ตัวเลือก (radio)</option>
+              <option value="rating" ${isEdit && q.questionType==='rating'?'selected':''}>ให้คะแนน 1-5 (rating)</option>
+              <option value="textarea" ${isEdit && q.questionType==='textarea'?'selected':''}>ข้อความ (textarea)</option>
+            </select>
+          </div>
+          <div id="choicesWrap">
+            <label class="block text-sm font-medium text-gray-700 mb-1">ตัวเลือก (คั่นด้วย |)</label>
+            <input type="text" id="q_choices" value="${isEdit ? choicesToString(q.choices) : ''}" placeholder="ชาย|หญิง" class="w-full px-3 py-2 border rounded-lg">
+            <p class="text-xs text-gray-400 mt-1">rating ใช้: 5=มากที่สุด|4=มาก|3=ปานกลาง|2=น้อย|1=น้อยที่สุด</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">ลำดับ</label>
+              <input type="number" id="q_order" value="${isEdit ? q.orderNo : (questionsData.length+1)}" required class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div class="flex items-end">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="q_required" ${isEdit ? (q.required?'checked':'') : 'checked'} class="w-4 h-4">
+                <span class="text-sm">จำเป็นต้องตอบ</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-medium">บันทึก</button>
+            <button type="button" onclick="closeModal()" class="px-5 bg-gray-200 hover:bg-gray-300 rounded-xl">ยกเลิก</button>
+          </div>
+        </form>`;
+      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('modal').classList.add('flex');
+      toggleChoices();
+    }
+
+    function choicesToString(choices) {
+      if (!choices || !choices.length) return '';
+      return choices.map(c => c.value === c.label ? c.value : c.value + '=' + c.label).join('|');
+    }
+
+    function toggleChoices() {
+      const type = document.getElementById('q_type').value;
+      document.getElementById('choicesWrap').style.display = (type === 'textarea') ? 'none' : 'block';
+    }
+
+    function editQuestion(q) { openQuestionModal(q); }
+
+    async function saveQuestion(event) {
+      event.preventDefault();
+      const data = {
+        questionId: document.getElementById('q_id').value,
+        part: document.getElementById('q_part').value,
+        section: document.getElementById('q_section').value,
+        category: document.getElementById('q_category').value,
+        questionText: document.getElementById('q_text').value,
+        questionType: document.getElementById('q_type').value,
+        choices: document.getElementById('q_choices').value,
+        orderNo: document.getElementById('q_order').value,
+        required: document.getElementById('q_required').checked,
+        active: true
+      };
+      showLoading('กำลังบันทึก...');
+      const res = await callApi('saveQuestion', data, 'POST');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) { closeModal(); loadQuestions(); }
+    }
+
+    async function deleteQuestion(questionId) {
+      if (!confirm('ต้องการลบคำถามนี้ใช่หรือไม่?')) return;
+      showLoading('กำลังลบ...');
+      const res = await callApi('deleteQuestion', { questionId }, 'POST');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) loadQuestions();
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      document.getElementById('modal').classList.remove('flex');
+    }
+
+    // ============================================================
+    //  หน้า 4: ผลการประเมิน (คำนวณสถิติ)
+    // ============================================================
+    async function loadResults() {
+      const el = document.getElementById('page-results');
+      el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังคำนวณ...</div>';
+      const res = await callApi('getResults');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+
+      if (res.totalResponses === 0) {
+        el.innerHTML = '<div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400"><div class="text-4xl mb-2">📭</div>ยังไม่มีผู้ทำแบบประเมิน</div>';
+        return;
+      }
+
+      let html = `<div class="bg-blue-600 text-white rounded-2xl shadow p-5 mb-6">
+        <p class="text-sm opacity-90">จำนวนผู้ตอบแบบประเมินทั้งหมด</p>
+        <p class="text-3xl font-bold">${res.totalResponses} คน</p>
+      </div>`;
+
+      // ===== ตอนที่ 1 =====
+      html += `<h3 class="text-lg font-semibold text-gray-800 mb-3">📌 ตอนที่ 1: ข้อมูลทั่วไป</h3>`;
+      res.part1.forEach(q => {
+        html += `<div class="bg-white rounded-2xl shadow p-5 mb-4">
+          <p class="font-medium text-gray-800 mb-3">${q.questionText} <span class="text-sm text-gray-400">(n=${q.answered})</span></p>`;
+        q.options.forEach(o => {
+          html += `<div class="mb-2">
+            <div class="flex justify-between text-sm mb-1"><span>${o.label}</span><span class="text-gray-500">${o.count} คน (${o.percent}%)</span></div>
+            <div class="bg-gray-100 rounded-full h-2.5"><div class="bg-blue-500 h-2.5 rounded-full" style="width:${o.percent}%"></div></div>
+          </div>`;
+        });
+        html += `</div>`;
+      });
+
+      // ===== ตอนที่ 2 =====
+      html += `<h3 class="text-lg font-semibold text-gray-800 mb-3 mt-6">📊 ตอนที่ 2: ระดับความพึงพอใจ</h3>`;
+      // ตารางรายข้อ
+      html += `<div class="bg-white rounded-2xl shadow overflow-hidden mb-4">
+        <div class="overflow-x-auto"><table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-600"><tr>
+            <th class="px-4 py-3 text-left">รายการประเมิน</th>
+            <th class="px-4 py-3 text-center">n</th>
+            <th class="px-4 py-3 text-center">x̄</th>
+            <th class="px-4 py-3 text-center">S.D.</th>
+            <th class="px-4 py-3 text-center">ระดับ</th>
+          </tr></thead><tbody>`;
+      let lastCat = '';
+      res.part2.items.forEach(it => {
+        if (it.category !== lastCat) {
+          html += `<tr class="bg-indigo-50"><td colspan="5" class="px-4 py-2 font-medium text-indigo-700">▸ ${it.category}</td></tr>`;
+          lastCat = it.category;
+        }
+        html += `<tr class="border-b">
+          <td class="px-4 py-2">${it.questionText}</td>
+          <td class="px-4 py-2 text-center">${it.n}</td>
+          <td class="px-4 py-2 text-center font-medium">${it.mean.toFixed(2)}</td>
+          <td class="px-4 py-2 text-center">${it.sd.toFixed(2)}</td>
+          <td class="px-4 py-2 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">${it.interpret}</span></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+
+      // สรุปรายด้าน
+      html += `<h4 class="font-semibold text-gray-700 mb-2">สรุปรายด้าน</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">`;
+      res.part2.byCategory.forEach(c => {
+        html += `<div class="bg-white rounded-xl shadow p-4 flex justify-between items-center">
+          <div><p class="font-medium text-gray-800">${c.category}</p><p class="text-xs text-gray-400">n=${c.n}</p></div>
+          <div class="text-right"><p class="text-xl font-bold text-blue-600">${c.mean.toFixed(2)}</p>
+          <p class="text-xs text-gray-500">S.D.=${c.sd.toFixed(2)} | ${c.interpret}</p></div>
+        </div>`;
+      });
+      html += `</div>`;
+
+      // ภาพรวมตอนที่ 2
+      const ov = res.part2.overall;
+      html += `<div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl shadow p-5 mb-6">
+        <div class="flex justify-between items-center">
+          <div><p class="text-sm opacity-90">ค่าเฉลี่ยรวมทั้งตอนที่ 2</p><p class="text-3xl font-bold">${ov.mean.toFixed(2)}</p></div>
+          <div class="text-right"><p class="text-sm opacity-90">S.D. = ${ov.sd.toFixed(2)}</p>
+          <span class="inline-block mt-1 bg-white/20 px-3 py-1 rounded-full">${ov.interpret}</span></div>
+        </div>
+      </div>`;
+
+      // ===== ตอนที่ 3 =====
+      html += `<h3 class="text-lg font-semibold text-gray-800 mb-3 mt-6">💬 ตอนที่ 3: ข้อเสนอแนะ</h3>`;
+      res.part3.forEach(q => {
+        html += `<div class="bg-white rounded-2xl shadow p-5 mb-4">
+          <p class="font-medium text-gray-800 mb-3">${q.questionText} <span class="text-sm text-gray-400">(${q.answers.length} ความเห็น)</span></p>`;
+        if (q.answers.length === 0) {
+          html += `<p class="text-gray-400 text-sm">ไม่มีผู้แสดงความคิดเห็น</p>`;
+        } else {
+          html += `<div class="space-y-2">`;
+          q.answers.forEach((a, i) => {
+            html += `<div class="bg-gray-50 rounded-lg px-4 py-2 text-sm text-gray-700 flex gap-2">
+              <span class="text-gray-400">${i+1}.</span><span>${a}</span></div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div>`;
+      });
+
+      el.innerHTML = html;
+    }
+
+    // ============================================================
+    //  หน้า 5: ตั้งค่าระบบ (เฉพาะ Admin)
+    // ============================================================
+    async function loadSettings() {
+      const el = document.getElementById('page-settings');
+      el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
+      const res = await callApi('getSettings');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+      const s = res.data;
+
+      el.innerHTML = `
+        <div class="bg-white rounded-2xl shadow p-6 mb-6 max-w-2xl">
+          <h3 class="font-semibold text-gray-800 mb-4">⚙️ ตั้งค่าเกียรติบัตร</h3>
+          <form onsubmit="saveSettings(event)" class="space-y-4">
+            ${settingInput('projectName', 'ชื่อโครงการ', s.projectName)}
+            ${settingInput('certDate', 'วันที่บนเกียรติบัตร', s.certDate)}
+            ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขรันนิ่ง)', s.certPrefix)}
+            ${settingInput('startNumber', 'เลขเริ่มต้น', s.startNumber)}
+            ${settingInput('certCount', 'จำนวนเกียรติบัตร', s.certCount)}
+            ${settingInput('folderId', 'Drive Folder ID', s.folderId)}
+            ${settingInput('templateId', 'Slides Template ID', s.templateId)}
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium">💾 บันทึกการตั้งค่า</button>
+          </form>
+        </div>
+        <div class="bg-white rounded-2xl shadow p-6 max-w-2xl">
+          <h3 class="font-semibold text-gray-800 mb-4">👥 จัดการผู้ใช้</h3>
+          <div id="usersList" class="text-gray-400 text-sm">กำลังโหลด...</div>
+        </div>`;
+      loadUsers();
+    }
+
+    function settingInput(key, label, value) {
+      return `<div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">${label}</label>
+        <input type="text" id="set_${key}" value="${value || ''}" class="w-full px-3 py-2 border rounded-lg">
+      </div>`;
+    }
+
+    async function saveSettings(event) {
+      event.preventDefault();
+      const keys = ['projectName', 'certDate', 'certPrefix', 'startNumber', 'certCount', 'folderId', 'templateId'];
+      const settings = {};
+      keys.forEach(k => settings[k] = document.getElementById('set_' + k).value);
+      showLoading('กำลังบันทึก...');
+      const res = await callApi('saveSettings', { settings }, 'POST');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+    }
+
+    async function loadUsers() {
+      const res = await callApi('getUsers');
+      const el = document.getElementById('usersList');
+      if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดไม่สำเร็จ</p>'; return; }
+      let html = '<div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="px-3 py-2 text-left">สิทธิ์</th><th class="px-3 py-2 text-left">รหัสผ่าน</th><th class="px-3 py-2 text-left">ชื่อแสดง</th></tr></thead><tbody>';
+      res.data.forEach(u => {
+        html += `<tr class="border-b"><td class="px-3 py-2">${u.role==='admin'?'👑 Admin':'👤 Staff'}</td><td class="px-3 py-2 font-mono">${u.password}</td><td class="px-3 py-2">${u.displayName}</td></tr>`;
+      });
+      html += '</tbody></table></div><p class="text-xs text-gray-400 mt-2">* แก้ไขรหัสผ่านได้ที่ชีต Users ใน Google Sheet</p>';
+      el.innerHTML = html;
+    }
+
+    // ============ เริ่มต้น: เช็ค session ============
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = sessionStorage.getItem('certAdminUser');
+      if (saved) {
+        currentUser = JSON.parse(saved);
+        enterApp();
+      }
+    });
+  </script>
+</body>
+</html>
