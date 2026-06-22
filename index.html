@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบค้นหาเกียรติบัตร</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Sarabun', sans-serif; }
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .star { cursor: pointer; transition: all 0.15s; }
+    .star:hover { transform: scale(1.15); }
+    /* ซ่อน scrollbar แนวนอนบนตาราง mobile */
+    .table-scroll { -webkit-overflow-scrolling: touch; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+
+  <!-- ============ Header ============ -->
+  <header class="bg-white shadow-md sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-600 text-white w-11 h-11 rounded-xl flex items-center justify-center text-2xl">🎓</div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold text-gray-800">ระบบค้นหาเกียรติบัตร</h1>
+          <p class="text-xs text-gray-500" id="headerProject">ประเมินความพึงพอใจและออกเกียรติบัตร</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+
+    <!-- ============ Section 1: ค้นหา ============ -->
+    <section class="bg-white rounded-2xl shadow-lg p-6 mb-6 fade-in">
+      <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <span class="text-blue-600">🔍</span> ค้นหาเกียรติบัตร
+      </h2>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <input type="text" id="searchInput"
+               placeholder="กรอกชื่อ-นามสกุล หรือ ชื่อโรงเรียน"
+               class="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+               onkeypress="if(event.key==='Enter') doSearch()">
+        <button onclick="doSearch()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+          <span>🔍</span> ค้นหา
+        </button>
+        <button onclick="clearSearch()"
+                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl font-medium transition">
+          ล้าง
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ Section 2: ผลการค้นหา ============ -->
+    <section id="resultSection" class="bg-white rounded-2xl shadow-lg p-6 mb-6 hidden fade-in">
+      <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <span class="text-blue-600">📋</span> ผลการค้นหา
+        <span id="resultCount" class="text-sm font-normal text-gray-500"></span>
+      </h2>
+      <div class="overflow-x-auto table-scroll">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 text-left">
+              <th class="px-4 py-3 rounded-l-lg">เลขที่เกียรติบัตร</th>
+              <th class="px-4 py-3">ชื่อ-นามสกุล</th>
+              <th class="px-4 py-3">สถานะ</th>
+              <th class="px-4 py-3 rounded-r-lg text-center">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+      <div id="noResult" class="hidden text-center py-8 text-gray-400">
+        <div class="text-4xl mb-2">🔍</div>
+        ไม่พบข้อมูลเกียรติบัตร กรุณาตรวจสอบคำค้นหา
+      </div>
+    </section>
+
+    <!-- ============ Section 3: แบบประเมิน ============ -->
+    <section id="evalSection" class="bg-white rounded-2xl shadow-lg p-6 mb-6 hidden fade-in">
+      <div class="border-b pb-4 mb-4">
+        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <span class="text-blue-600">📝</span> แบบประเมินความพึงพอใจ
+        </h2>
+        <p class="text-sm text-gray-500 mt-1">
+          เกียรติบัตรเลขที่: <span id="evalCertNo" class="font-medium text-blue-600"></span>
+          | ผู้รับ: <span id="evalName" class="font-medium"></span>
+        </p>
+      </div>
+
+      <form id="evalForm" onsubmit="submitEval(event)">
+        <div id="questionsContainer"></div>
+
+        <div class="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">
+          <button type="submit" id="submitBtn"
+                  class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            <span>✓</span> ส่งแบบประเมิน
+          </button>
+          <button type="button" onclick="cancelEval()"
+                  class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-xl font-medium transition">
+            ยกเลิก
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ============ Section 4: ผลลัพธ์/ดาวน์โหลด ============ -->
+    <section id="downloadSection" class="bg-white rounded-2xl shadow-lg p-6 mb-6 hidden fade-in">
+      <div class="text-center">
+        <div class="text-5xl mb-3">🎉</div>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">เกียรติบัตรพร้อมดาวน์โหลด!</h2>
+        <p class="text-gray-500 mb-4">เลขที่: <span id="dlCertNo" class="font-medium text-blue-600"></span></p>
+
+        <!-- Preview -->
+        <div id="previewContainer" class="mb-5 border rounded-xl overflow-hidden bg-gray-50" style="min-height: 300px;">
+          <iframe id="previewFrame" class="w-full" style="height: 450px; border: 0;" src=""></iframe>
+        </div>
+
+        <a id="downloadBtn" href="#" target="_blank"
+           class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-medium transition">
+          <span>⬇️</span> ดาวน์โหลดเกียรติบัตร (PDF)
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ Loading Overlay ============ -->
+  <div id="loading" class="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-2xl">
+      <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-gray-600 font-medium" id="loadingText">กำลังโหลด...</p>
+    </div>
+  </div>
+
+  <!-- ============ Toast แจ้งเตือน ============ -->
+  <div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
+    <div id="toastBox" class="px-5 py-3 rounded-xl shadow-lg text-white font-medium flex items-center gap-2"></div>
+  </div>
+
+  <script>
+    // ============================================================
+    //  ตั้งค่า: ใส่ Web App URL ของคุณตรงนี้
+    // ============================================================
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxWSqRuz6oHlULw0Hl8DBEeRH_-bD9u0NuwARLU1MTM_FybOSUovRWrGZ2IClN2H4h4aw/exec'; // TODO: วาง Web App URL ที่ Deploy ได้
+
+    // เก็บข้อมูลคำถามและรายการที่กำลังประเมิน
+    let questionsCache = [];
+    let currentCert = null;
+
+    // ============ ฟังก์ชันเรียก API ============
+    async function callApi(action, params = {}, method = 'GET') {
+      try {
+        if (method === 'GET') {
+          const query = new URLSearchParams(Object.assign({ action }, params)).toString();
+          const res = await fetch(API_URL + '?' + query);
+          return await res.json();
+        } else {
+          // POST: ส่งแบบ text/plain เพื่อเลี่ยง CORS preflight ของ Apps Script
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(Object.assign({ action }, params))
+          });
+          return await res.json();
+        }
+      } catch (err) {
+        return { success: false, message: 'เชื่อมต่อไม่สำเร็จ: ' + err.message };
+      }
+    }
+
+    // ============ UI Helper ============
+    function showLoading(text = 'กำลังโหลด...') {
+      document.getElementById('loadingText').textContent = text;
+      document.getElementById('loading').classList.remove('hidden');
+    }
+    function hideLoading() {
+      document.getElementById('loading').classList.add('hidden');
+    }
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const box = document.getElementById('toastBox');
+      box.className = 'px-5 py-3 rounded-xl shadow-lg text-white font-medium flex items-center gap-2 ' +
+                      (type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600');
+      box.innerHTML = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : 'ℹ ') + message;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    // ============ Section 1-2: ค้นหา ============
+    async function doSearch() {
+      const keyword = document.getElementById('searchInput').value.trim();
+      if (!keyword) { showToast('กรุณากรอกคำค้นหา', 'error'); return; }
+
+      // ซ่อน section อื่น
+      hideAllSections();
+      showLoading('กำลังค้นหา...');
+
+      const res = await callApi('searchCertificate', { keyword });
+      hideLoading();
+
+      const section = document.getElementById('resultSection');
+      const body = document.getElementById('resultBody');
+      const noResult = document.getElementById('noResult');
+      const count = document.getElementById('resultCount');
+
+      section.classList.remove('hidden');
+      body.innerHTML = '';
+
+      if (!res.success || res.count === 0) {
+        noResult.classList.remove('hidden');
+        count.textContent = '';
+        return;
+      }
+
+      noResult.classList.add('hidden');
+      count.textContent = '(พบ ' + res.count + ' รายการ)';
+
+      res.data.forEach(cert => {
+        const statusBadge = getStatusBadge(cert.status);
+        const actionBtn = getActionButton(cert);
+        body.innerHTML += `
+          <tr class="border-b hover:bg-blue-50/50 transition">
+            <td class="px-4 py-3 font-medium text-gray-700">${cert.certNo}</td>
+            <td class="px-4 py-3">${cert.prefix || ''}${cert.fullName}</td>
+            <td class="px-4 py-3">${statusBadge}</td>
+            <td class="px-4 py-3 text-center">${actionBtn}</td>
+          </tr>`;
+      });
+    }
+
+    function getStatusBadge(status) {
+      const map = {
+        'ยังไม่ประเมิน': 'bg-yellow-100 text-yellow-700',
+        'ประเมินแล้ว': 'bg-blue-100 text-blue-700',
+        'พร้อมดาวน์โหลด': 'bg-green-100 text-green-700'
+      };
+      const cls = map[status] || 'bg-gray-100 text-gray-600';
+      return `<span class="px-3 py-1 rounded-full text-xs font-medium ${cls}">${status}</span>`;
+    }
+
+    function getActionButton(cert) {
+      const certData = encodeURIComponent(JSON.stringify(cert));
+      if (cert.status === 'พร้อมดาวน์โหลด') {
+        return `<button onclick="openDownload('${certData}')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition">⬇️ ดาวน์โหลด</button>`;
+      }
+      return `<button onclick="startEval('${certData}')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition">📝 ทำแบบประเมิน</button>`;
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      hideAllSections();
+    }
+
+    function hideAllSections() {
+      ['resultSection', 'evalSection', 'downloadSection'].forEach(id =>
+        document.getElementById(id).classList.add('hidden'));
+    }
+
+    // ============ Section 3: แบบประเมิน ============
+    async function startEval(certData) {
+      currentCert = JSON.parse(decodeURIComponent(certData));
+
+      // โหลดคำถาม (ครั้งแรก)
+      if (questionsCache.length === 0) {
+        showLoading('กำลังโหลดแบบประเมิน...');
+        const res = await callApi('getQuestions');
+        hideLoading();
+        if (!res.success) { showToast('โหลดคำถามไม่สำเร็จ', 'error'); return; }
+        questionsCache = res.data;
+      }
+
+      // แสดงข้อมูลหัว
+      document.getElementById('evalCertNo').textContent = currentCert.certNo;
+      document.getElementById('evalName').textContent = (currentCert.prefix || '') + currentCert.fullName;
+
+      renderQuestions();
+
+      document.getElementById('resultSection').classList.add('hidden');
+      document.getElementById('evalSection').classList.remove('hidden');
+      document.getElementById('evalSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // เรนเดอร์คำถาม แบ่งตาม part
+    function renderQuestions() {
+      const container = document.getElementById('questionsContainer');
+      container.innerHTML = '';
+
+      // จัดกลุ่มตาม part
+      const parts = {};
+      questionsCache.forEach(q => {
+        if (!parts[q.part]) parts[q.part] = [];
+        parts[q.part].push(q);
+      });
+
+      // เรนเดอร์ทีละ part
+      Object.keys(parts).forEach(partName => {
+        const partQuestions = parts[partName];
+        const sectionName = partQuestions[0].section;
+
+        let html = `<div class="mb-6">
+          <div class="bg-blue-50 border-l-4 border-blue-600 px-4 py-2 rounded-r-lg mb-4">
+            <h3 class="font-semibold text-blue-800">${partName}: ${sectionName}</h3>
+          </div>`;
+
+        let lastCategory = '';
+        partQuestions.forEach((q, idx) => {
+          // หัวข้อย่อย (category) สำหรับ rating
+          if (q.questionType === 'rating' && q.category && q.category !== lastCategory) {
+            html += `<p class="font-medium text-gray-600 mt-4 mb-2 text-sm">▸ ${q.category}</p>`;
+            lastCategory = q.category;
+          }
+          html += renderQuestionItem(q, idx);
+        });
+
+        html += `</div>`;
+        container.innerHTML += html;
+      });
+    }
+
+    function renderQuestionItem(q, idx) {
+      const reqMark = q.required ? '<span class="text-red-500">*</span>' : '';
+      let input = '';
+
+      if (q.questionType === 'radio') {
+        // ตัวเลือก
+        input = '<div class="flex flex-wrap gap-3 mt-2">';
+        q.choices.forEach(c => {
+          input += `
+            <label class="flex items-center gap-2 cursor-pointer bg-gray-50 hover:bg-blue-50 px-4 py-2 rounded-lg border transition">
+              <input type="radio" name="${q.questionId}" value="${c.value}" ${q.required ? 'required' : ''} class="text-blue-600">
+              <span class="text-sm">${c.label}</span>
+            </label>`;
+        });
+        input += '</div>';
+
+      } else if (q.questionType === 'rating') {
+        // ดาว/ปุ่ม 1-5
+        input = `<div class="flex items-center gap-2 mt-2" data-rating="${q.questionId}">`;
+        // เรียงจากมากไปน้อย (5->1) ตามแบบฟอร์มราชการ
+        const sorted = [...q.choices].sort((a,b) => Number(b.value) - Number(a.value));
+        sorted.forEach(c => {
+          input += `
+            <label class="flex flex-col items-center cursor-pointer group">
+              <input type="radio" name="${q.questionId}" value="${c.value}" ${q.required ? 'required' : ''} class="sr-only peer" onchange="updateStar('${q.questionId}', ${c.value})">
+              <span class="star text-3xl text-gray-300 peer-checked:text-yellow-400" data-val="${c.value}">★</span>
+              <span class="text-xs text-gray-500 mt-1">${c.value}</span>
+            </label>`;
+        });
+        input += `</div>
+          <p class="text-xs text-gray-400 mt-1">5=มากที่สุด, 4=มาก, 3=ปานกลาง, 2=น้อย, 1=น้อยที่สุด</p>`;
+
+      } else if (q.questionType === 'textarea') {
+        input = `<textarea name="${q.questionId}" ${q.required ? 'required' : ''} rows="3"
+                  placeholder="กรอกความคิดเห็น..."
+                  class="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></textarea>`;
+      }
+
+      return `
+        <div class="mb-4 p-3 rounded-lg hover:bg-gray-50/50">
+          <label class="font-medium text-gray-700 text-sm">${q.orderNo}. ${q.questionText} ${reqMark}</label>
+          ${input}
+        </div>`;
+    }
+
+    // อัปเดตสีดาว (ให้ดาวซ้ายมือสว่างตามคะแนนที่เลือก)
+    function updateStar(qId, val) {
+      const container = document.querySelector(`[data-rating="${qId}"]`);
+      const stars = container.querySelectorAll('.star');
+      stars.forEach(s => {
+        const sv = Number(s.dataset.val);
+        // ดาวที่ค่า >= ค่าที่เลือก ให้สว่าง (เพราะเรียง 5->1 ซ้ายไปขวา)
+        s.classList.toggle('text-yellow-400', sv >= val);
+        s.classList.toggle('text-gray-300', sv < val);
+      });
+    }
+
+    // ส่งแบบประเมิน
+    async function submitEval(event) {
+      event.preventDefault();
+      const form = document.getElementById('evalForm');
+
+      // รวบรวมคำตอบ
+      const answers = {};
+      let missingRequired = false;
+
+      questionsCache.forEach(q => {
+        const el = form.elements[q.questionId];
+        let value = '';
+        if (q.questionType === 'radio' || q.questionType === 'rating') {
+          const checked = form.querySelector(`input[name="${q.questionId}"]:checked`);
+          value = checked ? checked.value : '';
+        } else {
+          value = el ? el.value.trim() : '';
+        }
+        if (q.required && !value) missingRequired = true;
+        // แปลง rating เป็นตัวเลข
+        answers[q.questionId] = (q.questionType === 'rating' && value) ? Number(value) : value;
+      });
+
+      if (missingRequired) {
+        showToast('กรุณาตอบคำถามที่จำเป็น (*) ให้ครบ', 'error');
+        return;
+      }
+
+      showLoading('กำลังบันทึกแบบประเมิน...');
+      const res = await callApi('submitResponse', {
+        certNo: currentCert.certNo,
+        answers: answers
+      }, 'POST');
+      hideLoading();
+
+      if (res.success) {
+        showToast('บันทึกแบบประเมินสำเร็จ! 🎉', 'success');
+        // ไป Section 4 (ดาวน์โหลด)
+        currentCert.status = 'พร้อมดาวน์โหลด';
+        currentCert.fileUrl = res.fileUrl || currentCert.fileUrl;
+        showDownloadSection(currentCert);
+      } else {
+        if (res.alreadyDone) {
+          showToast('เกียรติบัตรนี้ทำแบบประเมินไปแล้ว', 'error');
+        } else {
+          showToast(res.message || 'บันทึกไม่สำเร็จ', 'error');
+        }
+      }
+    }
+
+    function cancelEval() {
+      document.getElementById('evalSection').classList.add('hidden');
+      document.getElementById('resultSection').classList.remove('hidden');
+    }
+
+    // ============ Section 4: ดาวน์โหลด ============
+    function openDownload(certData) {
+      const cert = JSON.parse(decodeURIComponent(certData));
+      showDownloadSection(cert);
+    }
+
+    function showDownloadSection(cert) {
+      hideAllSections();
+
+      document.getElementById('dlCertNo').textContent = cert.certNo;
+      const dlBtn = document.getElementById('downloadBtn');
+      const frame = document.getElementById('previewFrame');
+
+      if (cert.fileUrl) {
+        // แปลง /view เป็น /preview สำหรับ iframe
+        const previewUrl = cert.fileUrl.replace('/view', '/preview');
+        frame.src = previewUrl;
+        // ลิงก์ดาวน์โหลด
+        dlBtn.href = cert.fileUrl;
+        document.getElementById('previewContainer').classList.remove('hidden');
+      } else {
+        // ยังไม่มีไฟล์ (admin ยังไม่ได้สร้าง)
+        document.getElementById('previewContainer').innerHTML =
+          '<div class="flex items-center justify-center h-full text-gray-400 py-16">⏳ เกียรติบัตรกำลังจัดเตรียม กรุณาติดต่อผู้ดูแล</div>';
+        dlBtn.classList.add('hidden');
+      }
+
+      const section = document.getElementById('downloadSection');
+      section.classList.remove('hidden');
+      section.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ============ โหลดข้อมูลโครงการตอนเปิดหน้า ============
+    window.addEventListener('DOMContentLoaded', async () => {
+      const res = await callApi('getSettings');
+      if (res.success && res.data.projectName) {
+        document.getElementById('headerProject').textContent = res.data.projectName;
+      }
+    });
+  </script>
+</body>
+</html>
