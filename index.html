@@ -347,16 +347,19 @@
         input += '</div>';
 
       } else if (q.questionType === 'rating') {
-        // ดาว/ปุ่ม 1-5
-        input = `<div class="flex items-center gap-2 mt-2" data-rating="${q.questionId}">`;
+        // ปุ่มกดให้คะแนน 1-5
+        input = `<div class="flex flex-wrap items-center gap-2 mt-2" data-rating="${q.questionId}">`;
         // เรียงจากมากไปน้อย (5->1) ตามแบบฟอร์มราชการ
         const sorted = [...q.choices].sort((a,b) => Number(b.value) - Number(a.value));
+        const labelMap = { 5: 'มากที่สุด', 4: 'มาก', 3: 'ปานกลาง', 2: 'น้อย', 1: 'น้อยที่สุด' };
         sorted.forEach(c => {
           input += `
-            <label class="flex flex-col items-center cursor-pointer group">
-              <input type="radio" name="${q.questionId}" value="${c.value}" ${q.required ? 'required' : ''} class="sr-only peer" onchange="updateStar('${q.questionId}', ${c.value})">
-              <span class="star text-3xl text-gray-300 peer-checked:text-yellow-400" data-val="${c.value}">★</span>
-              <span class="text-xs text-gray-500 mt-1">${c.value}</span>
+            <label class="rating-btn cursor-pointer">
+              <input type="radio" name="${q.questionId}" value="${c.value}" ${q.required ? 'required' : ''} class="sr-only peer" onchange="updateRating('${q.questionId}', ${c.value})">
+              <span class="flex flex-col items-center justify-center min-w-[64px] px-3 py-2 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-600 transition peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white hover:border-blue-400" data-val="${c.value}">
+                <span class="text-lg font-bold leading-none">${c.value}</span>
+                <span class="text-[11px] mt-1 leading-none">${labelMap[c.value] || ''}</span>
+              </span>
             </label>`;
         });
         input += `</div>
@@ -375,15 +378,14 @@
         </div>`;
     }
 
-    // อัปเดตสีดาว (ให้ดาวซ้ายมือสว่างตามคะแนนที่เลือก)
-    function updateStar(qId, val) {
+    // อัปเดตปุ่มที่เลือก (เฉพาะปุ่มที่กดให้ active)
+    function updateRating(qId, val) {
       const container = document.querySelector(`[data-rating="${qId}"]`);
-      const stars = container.querySelectorAll('.star');
-      stars.forEach(s => {
-        const sv = Number(s.dataset.val);
-        // ดาวที่ค่า >= ค่าที่เลือก ให้สว่าง (เพราะเรียง 5->1 ซ้ายไปขวา)
-        s.classList.toggle('text-yellow-400', sv >= val);
-        s.classList.toggle('text-gray-300', sv < val);
+      container.querySelectorAll('span[data-val]').forEach(s => {
+        const active = Number(s.dataset.val) === Number(val);
+        s.classList.toggle('border-blue-600', active);
+        s.classList.toggle('bg-blue-600', active);
+        s.classList.toggle('text-white', active);
       });
     }
 
