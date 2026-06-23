@@ -360,8 +360,7 @@
               </span>
             </label>`;
         });
-        input += `</div>
-          <p class="text-xs text-gray-400 mt-1">5=มากที่สุด, 4=มาก, 3=ปานกลาง, 2=น้อย, 1=น้อยที่สุด</p>`;
+        input += `</div>`;
 
       } else if (q.questionType === 'textarea') {
         input = `<textarea name="${q.questionId}" ${q.required ? 'required' : ''} rows="3"
