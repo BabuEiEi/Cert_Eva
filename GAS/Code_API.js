@@ -51,6 +51,7 @@ function handleRequest_(e) {
       case 'getCertificates': result = apiGetCertificates_(); break;
       case 'generateCertificate': result = apiGenerateCertificate_(params); break;
       case 'generateAll': result = apiGenerateAll_(); break;
+      case 'repairCertificateFiles': result = apiRepairCertificateFiles_(); break;
       case 'saveQuestion': result = apiSaveQuestion_(params); break;
       case 'deleteQuestion': result = apiDeleteQuestion_(params); break;
       case 'getSettings': result = apiGetSettings_(); break;
@@ -397,6 +398,8 @@ function createCertificateFile_(cert) {
   if (!templateId) return { success: false, message: 'ยังไม่ได้ตั้งค่า templateId ใน Settings' };
   if (!folderId) return { success: false, message: 'ยังไม่ได้ตั้งค่า folderId ใน Settings' };
 
+  let copyFile = null;
+
   try {
     const folder = DriveApp.getFolderById(folderId);
     const fullName = decodeText_(cert.fullName);
@@ -404,7 +407,7 @@ function createCertificateFile_(cert) {
     // 1. คัดลอกไฟล์ template
     const templateFile = DriveApp.getFileById(templateId);
     const copyName = 'เกียรติบัตร_' + cert.certNo.replace(/[\/\\]/g, '-');
-    const copyFile = templateFile.makeCopy(copyName, folder);
+    copyFile = templateFile.makeCopy(copyName, folder);
 
     // 2. เปิด Slides แล้วแทนค่า placeholder
     const slides = SlidesApp.openById(copyFile.getId());
@@ -420,21 +423,85 @@ function createCertificateFile_(cert) {
     const pdfFile = folder.createFile(pdfBlob);
     pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    // 4. ลบไฟล์ Slides ชั่วคราว (เก็บแค่ PDF)
-    copyFile.setTrashed(true);
-
-    // 5. บันทึก URL กลับลงชีต
+    // 4. บันทึก URL กลับลงชีตทันทีหลังสร้าง PDF สำเร็จ
     const pdfUrl = 'https://drive.google.com/file/d/' + pdfFile.getId() + '/view';
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
     certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);          // fileUrl (คอลัมน์ 7)
     certSheet.getRange(cert._rowIndex, 8).setValue(new Date());      // createdAt (คอลัมน์ 8)
+    SpreadsheetApp.flush();
 
-    return { success: true, message: 'สร้างสำเร็จ', certNo: cert.certNo, fileUrl: pdfUrl };
+    // 5. ลบไฟล์ Slides ชั่วคราว (เก็บแค่ PDF) โดยไม่ให้กระทบการบันทึกลิงก์
+    let cleanupMessage = '';
+    try {
+      copyFile.setTrashed(true);
+    } catch (cleanupErr) {
+      cleanupMessage = ' แต่ลบไฟล์ Slides ชั่วคราวไม่สำเร็จ: ' + cleanupErr.message;
+    }
+
+    return { success: true, message: 'สร้างสำเร็จ' + cleanupMessage, certNo: cert.certNo, fileUrl: pdfUrl };
 
   } catch (err) {
     return { success: false, message: err.message };
   }
+}
+
+/**
+ * ซ่อมข้อมูลไฟล์ที่เคยสร้างแล้ว แต่ยังไม่ได้บันทึกลิงก์ลงชีต
+ * ค้นหา PDF ตามชื่อเกียรติบัตรใน folderId แล้วเติม fileUrl/createdAt พร้อมลบ Slides ชั่วคราวชื่อเดียวกัน
+ */
+function apiRepairCertificateFiles_() {
+  const settings = getSettingsMap_();
+  const folderId = settings.folderId;
+  if (!folderId) return { success: false, message: 'ยังไม่ได้ตั้งค่า folderId ใน Settings' };
+
+  try {
+    const folder = DriveApp.getFolderById(folderId);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+    const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+    let linked = 0;
+    let trashed = 0;
+
+    certs.forEach(function (cert) {
+      const copyName = 'เกียรติบัตร_' + String(cert.certNo).replace(/[\/\\]/g, '-');
+      const pdfName = copyName + '.pdf';
+
+      if (!cert.fileUrl) {
+        const pdfFiles = folder.getFilesByName(pdfName);
+        if (pdfFiles.hasNext()) {
+          const pdfFile = pdfFiles.next();
+          const pdfUrl = 'https://drive.google.com/file/d/' + pdfFile.getId() + '/view';
+          pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);
+          certSheet.getRange(cert._rowIndex, 8).setValue(pdfFile.getDateCreated());
+          linked++;
+        }
+      }
+
+      const slideFiles = folder.getFilesByName(copyName);
+      while (slideFiles.hasNext()) {
+        const slideFile = slideFiles.next();
+        slideFile.setTrashed(true);
+        trashed++;
+      }
+    });
+
+    SpreadsheetApp.flush();
+    return {
+      success: true,
+      message: 'ซ่อมข้อมูลสำเร็จ: เติมลิงก์ ' + linked + ' รายการ, ลบไฟล์ Slides ชั่วคราว ' + trashed + ' ไฟล์',
+      linked: linked,
+      trashed: trashed
+    };
+  } catch (err) {
+    return { success: false, message: 'ซ่อมข้อมูลไม่สำเร็จ: ' + err.message };
+  }
+}
+
+function repairCertificateFiles() {
+  const result = apiRepairCertificateFiles_();
+  SpreadsheetApp.getUi().alert(result.message);
 }
 
 /**
