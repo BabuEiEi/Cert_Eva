@@ -504,6 +504,18 @@ function repairCertificateFiles() {
   SpreadsheetApp.getUi().alert(result.message);
 }
 
+function authorizeRequiredServices() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settings = getSettingsMap_();
+  DriveApp.getRootFolder().getName();
+
+  if (settings.templateId) {
+    SlidesApp.openById(settings.templateId).getName();
+  }
+
+  SpreadsheetApp.getUi().alert('อนุญาตสิทธิ์เรียบร้อยแล้วสำหรับ Spreadsheet, Drive และ Slides\nSpreadsheet: ' + ss.getName());
+}
+
 /**
  * ============================================================
  *  API: saveQuestion (เพิ่ม/แก้ไขคำถาม — สำหรับ Admin/Staff)
