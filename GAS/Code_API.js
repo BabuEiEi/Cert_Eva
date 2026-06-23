@@ -421,7 +421,12 @@ function createCertificateFile_(cert) {
     // 3. Export เป็น PDF
     const pdfBlob = copyFile.getAs('application/pdf').setName(copyName + '.pdf');
     const pdfFile = folder.createFile(pdfBlob);
-    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    let sharingMessage = '';
+    try {
+      pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (sharingErr) {
+      sharingMessage = ' แต่ตั้งค่าแชร์ PDF ไม่สำเร็จ: ' + sharingErr.message;
+    }
 
     // 4. บันทึก URL กลับลงชีตทันทีหลังสร้าง PDF สำเร็จ
     const pdfUrl = 'https://drive.google.com/file/d/' + pdfFile.getId() + '/view';
@@ -439,7 +444,7 @@ function createCertificateFile_(cert) {
       cleanupMessage = ' แต่ลบไฟล์ Slides ชั่วคราวไม่สำเร็จ: ' + cleanupErr.message;
     }
 
-    return { success: true, message: 'สร้างสำเร็จ' + cleanupMessage, certNo: cert.certNo, fileUrl: pdfUrl };
+    return { success: true, message: 'สร้างสำเร็จ' + sharingMessage + cleanupMessage, certNo: cert.certNo, fileUrl: pdfUrl };
 
   } catch (err) {
     return { success: false, message: err.message };
@@ -462,6 +467,8 @@ function apiRepairCertificateFiles_() {
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
     let linked = 0;
     let trashed = 0;
+    let shareFailed = 0;
+    let trashFailed = 0;
 
     certs.forEach(function (cert) {
       const copyName = 'เกียรติบัตร_' + String(cert.certNo).replace(/[\/\\]/g, '-');
@@ -472,7 +479,11 @@ function apiRepairCertificateFiles_() {
         if (pdfFiles.hasNext()) {
           const pdfFile = pdfFiles.next();
           const pdfUrl = 'https://drive.google.com/file/d/' + pdfFile.getId() + '/view';
-          pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          try {
+            pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch (sharingErr) {
+            shareFailed++;
+          }
           certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);
           certSheet.getRange(cert._rowIndex, 8).setValue(pdfFile.getDateCreated());
           linked++;
@@ -482,17 +493,23 @@ function apiRepairCertificateFiles_() {
       const slideFiles = folder.getFilesByName(copyName);
       while (slideFiles.hasNext()) {
         const slideFile = slideFiles.next();
-        slideFile.setTrashed(true);
-        trashed++;
+        try {
+          slideFile.setTrashed(true);
+          trashed++;
+        } catch (trashErr) {
+          trashFailed++;
+        }
       }
     });
 
     SpreadsheetApp.flush();
     return {
       success: true,
-      message: 'ซ่อมข้อมูลสำเร็จ: เติมลิงก์ ' + linked + ' รายการ, ลบไฟล์ Slides ชั่วคราว ' + trashed + ' ไฟล์',
+      message: 'ซ่อมข้อมูลสำเร็จ: เติมลิงก์ ' + linked + ' รายการ, ลบไฟล์ Slides ชั่วคราว ' + trashed + ' ไฟล์, แชร์ PDF ไม่สำเร็จ ' + shareFailed + ' ไฟล์, ลบ Slides ไม่สำเร็จ ' + trashFailed + ' ไฟล์',
       linked: linked,
-      trashed: trashed
+      trashed: trashed,
+      shareFailed: shareFailed,
+      trashFailed: trashFailed
     };
   } catch (err) {
     return { success: false, message: 'ซ่อมข้อมูลไม่สำเร็จ: ' + err.message };
@@ -514,6 +531,42 @@ function authorizeRequiredServices() {
   }
 
   SpreadsheetApp.getUi().alert('อนุญาตสิทธิ์เรียบร้อยแล้วสำหรับ Spreadsheet, Drive และ Slides\nSpreadsheet: ' + ss.getName());
+}
+
+function checkDriveSettings() {
+  const settings = getSettingsMap_();
+  const messages = [];
+
+  if (!settings.folderId) {
+    messages.push('folderId: ยังไม่ได้ตั้งค่า');
+  } else {
+    try {
+      const folder = DriveApp.getFolderById(settings.folderId);
+      messages.push('folderId: เข้าถึงได้ - ' + folder.getName());
+    } catch (err) {
+      messages.push('folderId: เข้าถึงไม่ได้ - ' + err.message);
+    }
+  }
+
+  if (!settings.templateId) {
+    messages.push('templateId: ยังไม่ได้ตั้งค่า');
+  } else {
+    try {
+      const templateFile = DriveApp.getFileById(settings.templateId);
+      messages.push('templateId: เข้าถึงไฟล์ได้ - ' + templateFile.getName());
+
+      try {
+        SlidesApp.openById(settings.templateId).getName();
+        messages.push('templateId: เปิดเป็น Google Slides ได้');
+      } catch (slidesErr) {
+        messages.push('templateId: เปิดเป็น Google Slides ไม่ได้ - ' + slidesErr.message);
+      }
+    } catch (err) {
+      messages.push('templateId: เข้าถึงไม่ได้ - ' + err.message);
+    }
+  }
+
+  SpreadsheetApp.getUi().alert(messages.join('\n'));
 }
 
 /**
