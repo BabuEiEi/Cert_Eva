@@ -43,22 +43,22 @@ function handleRequest_(e) {
 
     // ===== เส้นทาง (Routing) ตาม action =====
     switch (action) {
-      case 'login':              result = apiLogin_(params); break;
-      case 'searchCertificate':  result = apiSearchCertificate_(params); break;
-      case 'getQuestions':       result = apiGetQuestions_(); break;
-      case 'checkStatus':        result = apiCheckStatus_(params); break;
-      case 'submitResponse':     result = apiSubmitResponse_(params); break;
-      case 'getCertificates':    result = apiGetCertificates_(); break;
-      case 'generateCertificate':result = apiGenerateCertificate_(params); break;
-      case 'generateAll':        result = apiGenerateAll_(); break;
-      case 'saveQuestion':       result = apiSaveQuestion_(params); break;
-      case 'deleteQuestion':     result = apiDeleteQuestion_(params); break;
-      case 'getSettings':        result = apiGetSettings_(); break;
-      case 'saveSettings':       result = apiSaveSettings_(params); break;
-      case 'getResults':         result = apiGetResults_(); break;
-      case 'getDashboard':       result = apiGetDashboard_(); break;
-      case 'getUsers':           result = apiGetUsers_(); break;
-      case 'saveUser':           result = apiSaveUser_(params); break;
+      case 'login': result = apiLogin_(params); break;
+      case 'searchCertificate': result = apiSearchCertificate_(params); break;
+      case 'getQuestions': result = apiGetQuestions_(); break;
+      case 'checkStatus': result = apiCheckStatus_(params); break;
+      case 'submitResponse': result = apiSubmitResponse_(params); break;
+      case 'getCertificates': result = apiGetCertificates_(); break;
+      case 'generateCertificate': result = apiGenerateCertificate_(params); break;
+      case 'generateAll': result = apiGenerateAll_(); break;
+      case 'saveQuestion': result = apiSaveQuestion_(params); break;
+      case 'deleteQuestion': result = apiDeleteQuestion_(params); break;
+      case 'getSettings': result = apiGetSettings_(); break;
+      case 'saveSettings': result = apiSaveSettings_(params); break;
+      case 'getResults': result = apiGetResults_(); break;
+      case 'getDashboard': result = apiGetDashboard_(); break;
+      case 'getUsers': result = apiGetUsers_(); break;
+      case 'saveUser': result = apiSaveUser_(params); break;
       default:
         result = { success: false, message: 'ไม่พบ action: ' + action };
     }
@@ -106,7 +106,7 @@ function readSheetCached_(sheetName, cacheSeconds) {
   const key = 'sheet_' + sheetName;
   const cached = cache.get(key);
   if (cached) {
-    try { return JSON.parse(cached); } catch (e) {}
+    try { return JSON.parse(cached); } catch (e) { }
   }
   const data = readSheetAsObjects_(sheetName);
   try {
@@ -132,7 +132,7 @@ function apiLogin_(params) {
   if (!password) return { success: false, message: 'กรุณากรอกรหัสผ่าน' };
 
   const users = readSheetAsObjects_(SHEETS.USERS);
-  const matched = users.find(function(u) {
+  const matched = users.find(function (u) {
     return String(u.password) === String(password);
   });
 
@@ -160,12 +160,12 @@ function apiSearchCertificate_(params) {
   const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
   const results = [];
 
-  certs.forEach(function(c) {
+  certs.forEach(function (c) {
     const fullName = decodeText_(c.fullName);
     const school = decodeText_(c.school);
     // เทียบทั้งชื่อและโรงเรียน
     if (fullName.toLowerCase().indexOf(keyword) !== -1 ||
-        school.toLowerCase().indexOf(keyword) !== -1) {
+      school.toLowerCase().indexOf(keyword) !== -1) {
       results.push({
         certNo: c.certNo,
         prefix: c.prefix,
@@ -194,13 +194,13 @@ function apiGetQuestions_() {
   const questions = readSheetCached_(SHEETS.QUESTIONS, 60);
 
   const active = questions
-    .filter(function(q) { return q.active === true || String(q.active).toUpperCase() === 'TRUE'; })
-    .sort(function(a, b) { return Number(a.orderNo) - Number(b.orderNo); })
-    .map(function(q) {
+    .filter(function (q) { return q.active === true || String(q.active).toUpperCase() === 'TRUE'; })
+    .sort(function (a, b) { return Number(a.orderNo) - Number(b.orderNo); })
+    .map(function (q) {
       // แปลง choices string เป็น array
       let choices = [];
       if (q.choices) {
-        choices = String(q.choices).split('|').map(function(opt) {
+        choices = String(q.choices).split('|').map(function (opt) {
           // รองรับรูปแบบ "5=มากที่สุด" => {value:5, label:'มากที่สุด'}
           if (opt.indexOf('=') !== -1) {
             const parts = opt.split('=');
@@ -233,7 +233,7 @@ function apiGetQuestions_() {
 function apiCheckStatus_(params) {
   const certNo = params.certNo || '';
   const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-  const cert = certs.find(function(c) { return String(c.certNo) === String(certNo); });
+  const cert = certs.find(function (c) { return String(c.certNo) === String(certNo); });
 
   if (!cert) return { success: false, message: 'ไม่พบเกียรติบัตร' };
 
@@ -266,12 +266,12 @@ function apiSubmitResponse_(params) {
 
     // หาเกียรติบัตร
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-    const cert = certs.find(function(c) { return String(c.certNo) === String(certNo); });
+    const cert = certs.find(function (c) { return String(c.certNo) === String(certNo); });
     if (!cert) return { success: false, message: 'ไม่พบเกียรติบัตรนี้ในระบบ' };
 
     // กันประเมินซ้ำ
     const responses = readSheetAsObjects_(SHEETS.RESPONSES);
-    const already = responses.find(function(r) { return String(r.certNo) === String(certNo); });
+    const already = responses.find(function (r) { return String(r.certNo) === String(certNo); });
     if (already) {
       return { success: false, message: 'เกียรติบัตรนี้ทำแบบประเมินไปแล้ว', alreadyDone: true };
     }
@@ -282,13 +282,13 @@ function apiSubmitResponse_(params) {
       answersObj = JSON.parse(answers);
     }
 
-    // บันทึกลงชีต Responses (fullName/school เข้ารหัส)
+    // บันทึกลงชีต Responses เป็นภาษาไทยปกติ
     const respSheet = ss.getSheetByName(SHEETS.RESPONSES);
     respSheet.appendRow([
       new Date(),
       certNo,
-      cert.fullName, // เข้ารหัสอยู่แล้วในชีต Certificates
-      cert.school,
+      decodeText_(cert.fullName),
+      decodeText_(cert.school),
       JSON.stringify(answersObj)
     ]);
 
@@ -321,7 +321,7 @@ function apiSubmitResponse_(params) {
  */
 function apiGetCertificates_() {
   const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-  const data = certs.map(function(c) {
+  const data = certs.map(function (c) {
     return {
       runNo: c.runNo,
       certNo: c.certNo,
@@ -347,7 +347,7 @@ function apiGenerateCertificate_(params) {
 
     const certNo = params.certNo || '';
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-    const cert = certs.find(function(c) { return String(c.certNo) === String(certNo); });
+    const cert = certs.find(function (c) { return String(c.certNo) === String(certNo); });
     if (!cert) return { success: false, message: 'ไม่พบเกียรติบัตร' };
 
     const result = createCertificateFile_(cert);
@@ -370,7 +370,7 @@ function apiGenerateAll_() {
   let created = 0, skipped = 0, failed = 0;
   const errors = [];
 
-  certs.forEach(function(cert) {
+  certs.forEach(function (cert) {
     if (cert.fileUrl) { skipped++; return; } // มีไฟล์แล้ว ข้าม
     const r = createCertificateFile_(cert);
     if (r.success) created++;
@@ -463,7 +463,7 @@ function apiSaveQuestion_(params) {
     };
 
     const questions = readSheetAsObjects_(SHEETS.QUESTIONS);
-    const existing = questions.find(function(item) { return String(item.questionId) === String(q.questionId); });
+    const existing = questions.find(function (item) { return String(item.questionId) === String(q.questionId); });
 
     const row = [q.questionId, q.part, q.section, q.category, q.questionText, q.questionType, q.choices, q.required, q.orderNo, q.active];
 
@@ -501,7 +501,7 @@ function apiDeleteQuestion_(params) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEETS.QUESTIONS);
     const questions = readSheetAsObjects_(SHEETS.QUESTIONS);
-    const existing = questions.find(function(q) { return String(q.questionId) === String(params.questionId); });
+    const existing = questions.find(function (q) { return String(q.questionId) === String(params.questionId); });
 
     if (!existing) return { success: false, message: 'ไม่พบคำถาม' };
 
@@ -538,8 +538,8 @@ function apiSaveSettings_(params) {
     let updates = params.settings;
     if (typeof updates === 'string') updates = JSON.parse(updates);
 
-    Object.keys(updates).forEach(function(key) {
-      const existing = settings.find(function(s) { return String(s.key) === String(key); });
+    Object.keys(updates).forEach(function (key) {
+      const existing = settings.find(function (s) { return String(s.key) === String(key); });
       if (existing) {
         sheet.getRange(existing._rowIndex, 2).setValue(updates[key]);
       } else {
@@ -561,7 +561,7 @@ function apiSaveSettings_(params) {
 function getSettingsMap_() {
   const settings = readSheetCached_(SHEETS.SETTINGS, 60);
   const map = {};
-  settings.forEach(function(s) { map[s.key] = s.value; });
+  settings.forEach(function (s) { map[s.key] = s.value; });
   return map;
 }
 
@@ -575,13 +575,13 @@ function getSettingsMap_() {
  */
 function apiGetResults_() {
   const questions = readSheetAsObjects_(SHEETS.QUESTIONS)
-    .filter(function(q) { return q.active === true || String(q.active).toUpperCase() === 'TRUE'; })
-    .sort(function(a, b) { return Number(a.orderNo) - Number(b.orderNo); });
+    .filter(function (q) { return q.active === true || String(q.active).toUpperCase() === 'TRUE'; })
+    .sort(function (a, b) { return Number(a.orderNo) - Number(b.orderNo); });
 
   const responses = readSheetAsObjects_(SHEETS.RESPONSES);
 
   // แปลง answersJSON เป็น object
-  const allAnswers = responses.map(function(r) {
+  const allAnswers = responses.map(function (r) {
     try { return JSON.parse(r.answersJSON); } catch (e) { return {}; }
   });
 
@@ -589,10 +589,10 @@ function apiGetResults_() {
 
   // ===== ตอนที่ 1: choice (radio) — จำนวน + ร้อยละ =====
   const part1 = [];
-  questions.filter(function(q) { return q.questionType === 'radio'; }).forEach(function(q) {
+  questions.filter(function (q) { return q.questionType === 'radio'; }).forEach(function (q) {
     const counts = {};
     let answered = 0;
-    allAnswers.forEach(function(ans) {
+    allAnswers.forEach(function (ans) {
       const v = ans[q.questionId];
       if (v !== undefined && v !== '') {
         counts[v] = (counts[v] || 0) + 1;
@@ -600,7 +600,7 @@ function apiGetResults_() {
       }
     });
     // สร้างผลลัพธ์แต่ละตัวเลือก
-    const options = String(q.choices).split('|').map(function(opt) {
+    const options = String(q.choices).split('|').map(function (opt) {
       const label = opt.indexOf('=') !== -1 ? opt.split('=')[1].trim() : opt.trim();
       const cnt = counts[label] || 0;
       return {
@@ -621,9 +621,9 @@ function apiGetResults_() {
   const part2Items = [];
   const categoryGroups = {}; // เก็บคะแนนแยกตาม category
 
-  questions.filter(function(q) { return q.questionType === 'rating'; }).forEach(function(q) {
+  questions.filter(function (q) { return q.questionType === 'rating'; }).forEach(function (q) {
     const scores = [];
-    allAnswers.forEach(function(ans) {
+    allAnswers.forEach(function (ans) {
       const v = Number(ans[q.questionId]);
       if (!isNaN(v) && v >= 1 && v <= 5) scores.push(v);
     });
@@ -646,7 +646,7 @@ function apiGetResults_() {
   });
 
   // สรุปรายด้าน (category)
-  const part2ByCategory = Object.keys(categoryGroups).map(function(cat) {
+  const part2ByCategory = Object.keys(categoryGroups).map(function (cat) {
     const stat = calcMeanSD_(categoryGroups[cat]);
     return {
       category: cat,
@@ -659,16 +659,16 @@ function apiGetResults_() {
 
   // สรุปภาพรวมทั้งตอนที่ 2
   let allRatingScores = [];
-  Object.keys(categoryGroups).forEach(function(cat) {
+  Object.keys(categoryGroups).forEach(function (cat) {
     allRatingScores = allRatingScores.concat(categoryGroups[cat]);
   });
   const overallStat = calcMeanSD_(allRatingScores);
 
   // ===== ตอนที่ 3: textarea — แสดงข้อความรายข้อ =====
   const part3 = [];
-  questions.filter(function(q) { return q.questionType === 'textarea'; }).forEach(function(q) {
+  questions.filter(function (q) { return q.questionType === 'textarea'; }).forEach(function (q) {
     const texts = [];
-    allAnswers.forEach(function(ans) {
+    allAnswers.forEach(function (ans) {
       const v = ans[q.questionId];
       if (v !== undefined && String(v).trim() !== '') {
         texts.push(String(v).trim());
@@ -706,13 +706,13 @@ function calcMeanSD_(scores) {
   const n = scores.length;
   if (n === 0) return { mean: 0, sd: 0 };
 
-  const sum = scores.reduce(function(a, b) { return a + b; }, 0);
+  const sum = scores.reduce(function (a, b) { return a + b; }, 0);
   const mean = sum / n;
 
   if (n === 1) return { mean: Math.round(mean * 100) / 100, sd: 0 };
 
   // Sample S.D. (หาร n-1)
-  const variance = scores.reduce(function(acc, x) {
+  const variance = scores.reduce(function (acc, x) {
     return acc + Math.pow(x - mean, 2);
   }, 0) / (n - 1);
   const sd = Math.sqrt(variance);
@@ -745,7 +745,7 @@ function apiGetDashboard_() {
   const responses = readSheetAsObjects_(SHEETS.RESPONSES);
 
   let evaluated = 0, notEvaluated = 0, ready = 0, generated = 0;
-  certs.forEach(function(c) {
+  certs.forEach(function (c) {
     if (c.status === 'พร้อมดาวน์โหลด') ready++;
     if (c.status === 'ยังไม่ประเมิน') notEvaluated++;
     if (c.status === 'ประเมินแล้ว') evaluated++;
@@ -754,18 +754,18 @@ function apiGetDashboard_() {
 
   // คะแนนเฉลี่ยรวม (จาก rating ทั้งหมด)
   const questions = readSheetAsObjects_(SHEETS.QUESTIONS)
-    .filter(function(q) { return q.questionType === 'rating'; });
-  const ratingIds = questions.map(function(q) { return q.questionId; });
+    .filter(function (q) { return q.questionType === 'rating'; });
+  const ratingIds = questions.map(function (q) { return q.questionId; });
 
   let allScores = [];
-  responses.forEach(function(r) {
+  responses.forEach(function (r) {
     try {
       const ans = JSON.parse(r.answersJSON);
-      ratingIds.forEach(function(id) {
+      ratingIds.forEach(function (id) {
         const v = Number(ans[id]);
         if (!isNaN(v) && v >= 1 && v <= 5) allScores.push(v);
       });
-    } catch (e) {}
+    } catch (e) { }
   });
   const stat = calcMeanSD_(allScores);
 
@@ -788,7 +788,7 @@ function apiGetDashboard_() {
  */
 function apiGetUsers_() {
   const users = readSheetAsObjects_(SHEETS.USERS);
-  const data = users.map(function(u) {
+  const data = users.map(function (u) {
     return { role: u.role, password: u.password, displayName: u.displayName };
   });
   return { success: true, data: data };
@@ -801,7 +801,7 @@ function apiSaveUser_(params) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEETS.USERS);
     const users = readSheetAsObjects_(SHEETS.USERS);
-    const existing = users.find(function(u) { return String(u.role) === String(params.role); });
+    const existing = users.find(function (u) { return String(u.role) === String(params.role); });
 
     const row = [params.role, params.password, params.displayName || ''];
     if (existing) {

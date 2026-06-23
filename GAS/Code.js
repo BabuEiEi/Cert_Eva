@@ -58,11 +58,11 @@ function setupCertificatesSheet_(ss) {
   const headers = ['runNo', 'certNo', 'prefix', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
-  // ข้อมูลตัวอย่าง 3 รายการ (fullName/school เข้ารหัส Base64)
+  // ข้อมูลตัวอย่าง 3 รายการ (เก็บเป็นภาษาไทยปกติ)
   const sampleData = [
-    [1, 'สพม.พลอต 0001/2569', 'นาย', encodeText_('สมชาย ใจดี'), encodeText_('โรงเรียนวัดบางปลา'), 'ยังไม่ประเมิน', '', ''],
-    [2, 'สพม.พลอต 0002/2569', 'นางสาว', encodeText_('สมหญิง รักเรียน'), encodeText_('โรงเรียนบ้านหนองหอย'), 'ยังไม่ประเมิน', '', ''],
-    [3, 'สพม.พลอต 0003/2569', 'นาย', encodeText_('วีระ ขยันยิ่ง'), encodeText_('โรงเรียนวัดบางปลา'), 'ยังไม่ประเมิน', '', '']
+    [1, 'สพม.พลอต 0001/2569', 'นาย', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
+    [2, 'สพม.พลอต 0002/2569', 'นางสาว', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
+    [3, 'สพม.พลอต 0003/2569', 'นาย', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
   ];
   sheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
 
@@ -208,16 +208,16 @@ function getOrCreateSheet_(ss, name) {
 function formatHeader_(sheet, numCols) {
   const headerRange = sheet.getRange(1, 1, 1, numCols);
   headerRange.setBackground('#1a73e8')
-             .setFontColor('#ffffff')
-             .setFontWeight('bold')
-             .setHorizontalAlignment('center');
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
   sheet.setFrozenRows(1);
 }
 
 // ลบชีตเริ่มต้น (Sheet1 / ชีต1) ถ้ามีและว่างเปล่า
 function removeDefaultSheet_(ss) {
   const defaultNames = ['Sheet1', 'ชีต1'];
-  defaultNames.forEach(function(name) {
+  defaultNames.forEach(function (name) {
     const sheet = ss.getSheetByName(name);
     if (sheet && ss.getSheets().length > 1) {
       ss.deleteSheet(sheet);
@@ -227,27 +227,75 @@ function removeDefaultSheet_(ss) {
 
 /**
  * ============================================================
- *  ฟังก์ชันเข้ารหัส/ถอดรหัส Base64 (ระดับ "ซ่อนตา")
- *  ใช้กับข้อมูลส่วนตัว เช่น fullName, school
+ *  ฟังก์ชันถอดรหัส Base64 สำหรับรองรับข้อมูลเก่า
+ *  ระบบใหม่เก็บ fullName/school เป็นภาษาไทยปกติในชีต
  * ============================================================
  */
 
-// เข้ารหัสข้อความเป็น Base64 (รองรับภาษาไทย UTF-8)
+// เข้ารหัสข้อความเป็น Base64 (เก็บไว้เพื่อความเข้ากันได้กับข้อมูล/สคริปต์เก่า)
 function encodeText_(text) {
   if (text === '' || text === null || text === undefined) return '';
   const bytes = Utilities.newBlob(text).getBytes();
   return Utilities.base64Encode(bytes);
 }
 
-// ถอดรหัส Base64 กลับเป็นข้อความ
-function decodeText_(encoded) {
-  if (encoded === '' || encoded === null || encoded === undefined) return '';
+// ถอดรหัส Base64 กลับเป็นข้อความ ถ้าไม่ใช่ Base64 จะคืนค่าเดิม
+function decodeText_(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const text = String(value);
+  const compact = text.trim();
+
+  if (!isLikelyBase64_(compact)) return text;
+
   try {
-    const bytes = Utilities.base64Decode(encoded);
-    return Utilities.newBlob(bytes).getDataAsString();
+    const bytes = Utilities.base64Decode(compact);
+    const decoded = Utilities.newBlob(bytes).getDataAsString('UTF-8');
+    const encodedAgain = Utilities.base64Encode(Utilities.newBlob(decoded).getBytes()).replace(/=+$/, '');
+    const original = compact.replace(/=+$/, '');
+
+    if (encodedAgain !== original) return text;
+    if (/\uFFFD|[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(decoded)) return text;
+    return decoded;
   } catch (e) {
-    return encoded; // ถ้าถอดไม่ได้ คืนค่าเดิม (กันข้อมูลเก่าที่ไม่ได้เข้ารหัส)
+    return text;
   }
+}
+
+function isLikelyBase64_(text) {
+  if (!text || text.length < 4 || text.length % 4 !== 0) return false;
+  return /^[A-Za-z0-9+/]+={0,2}$/.test(text);
+}
+
+/**
+ * ย้ายข้อมูลเก่า fullName/school จาก Base64 ให้เป็นภาษาไทยปกติ
+ * วิธีใช้: รันฟังก์ชันนี้ครั้งเดียวใน Apps Script หลังอัปเดตโค้ด
+ */
+function migrateBase64TextToThai() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const targets = [
+    { sheetName: SHEETS.CERTIFICATES, cols: [4, 5] },
+    { sheetName: SHEETS.RESPONSES, cols: [3, 4] }
+  ];
+  let changed = 0;
+
+  targets.forEach(function (target) {
+    const sheet = ss.getSheetByName(target.sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+
+    target.cols.forEach(function (col) {
+      const range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
+      const values = range.getValues();
+      const updated = values.map(function (row) {
+        const current = row[0];
+        const decoded = decodeText_(current);
+        if (String(current || '') !== String(decoded || '')) changed++;
+        return [decoded];
+      });
+      range.setValues(updated);
+    });
+  });
+
+  SpreadsheetApp.getUi().alert('แปลงข้อมูล Base64 เป็นภาษาไทยปกติแล้ว ' + changed + ' ช่อง');
 }
 
 /**
@@ -277,7 +325,7 @@ function buildCertNo_(pattern, runNo, year) {
   let result = pattern;
 
   // แทน {NO:0000} (เติม 0 ตามจำนวนหลัก)
-  result = result.replace(/\{NO:(0+)\}/g, function(match, zeros) {
+  result = result.replace(/\{NO:(0+)\}/g, function (match, zeros) {
     return String(runNo).padStart(zeros.length, '0');
   });
 
