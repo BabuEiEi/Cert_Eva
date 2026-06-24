@@ -118,9 +118,77 @@ function readSheetCached_(sheetName, cacheSeconds) {
   return data;
 }
 
+// อ่าน/เขียน cache ขนาดใหญ่แบบแบ่งก้อน เพื่อเลี่ยง limit ต่อ key ของ Apps Script CacheService
+function getJsonCache_(key) {
+  const cache = CacheService.getScriptCache();
+  const chunks = Number(cache.get(key + '_chunks')) || 0;
+  if (!chunks) return null;
+
+  let json = '';
+  for (let i = 0; i < chunks; i++) {
+    const part = cache.get(key + '_' + i);
+    if (part === null) return null;
+    json += part;
+  }
+
+  try { return JSON.parse(json); } catch (e) { return null; }
+}
+
+function putJsonCache_(key, data, cacheSeconds) {
+  const cache = CacheService.getScriptCache();
+  const json = JSON.stringify(data);
+  const chunkSize = 90000;
+  const chunks = Math.ceil(json.length / chunkSize);
+  const values = {};
+
+  values[key + '_chunks'] = String(chunks);
+  for (let i = 0; i < chunks; i++) {
+    values[key + '_' + i] = json.slice(i * chunkSize, (i + 1) * chunkSize);
+  }
+
+  try { cache.putAll(values, cacheSeconds || 300); } catch (e) { }
+}
+
+function removeJsonCache_(key) {
+  const cache = CacheService.getScriptCache();
+  const keys = [key + '_chunks'];
+  for (let i = 0; i < 50; i++) keys.push(key + '_' + i);
+  cache.removeAll(keys);
+}
+
+function readCertificatesSearchIndex_() {
+  const key = 'certificates_search_index_v1';
+  const cached = getJsonCache_(key);
+  if (cached) return cached;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  // อ่านเฉพาะคอลัมน์ที่ใช้ค้นหา/แสดงผล: certNo ถึง fileUrl ไม่อ่านทั้งชีต
+  const values = sheet.getRange(2, 2, sheet.getLastRow() - 1, 6).getValues();
+  const data = values.map(function (row) {
+    const fullName = decodeText_(row[2]);
+    const school = decodeText_(row[3]);
+    return {
+      certNo: row[0],
+      prefix: row[1],
+      fullName: fullName,
+      school: school,
+      status: row[4],
+      fileUrl: row[5] || '',
+      searchText: (fullName + ' ' + school).toLowerCase()
+    };
+  });
+
+  putJsonCache_(key, data, 300);
+  return data;
+}
+
 // ล้าง cache ของชีต (เรียกหลังเขียนข้อมูล)
 function clearSheetCache_(sheetName) {
   CacheService.getScriptCache().remove('sheet_' + sheetName);
+  if (sheetName === SHEETS.CERTIFICATES) removeJsonCache_('certificates_search_index_v1');
 }
 
 /**
@@ -158,20 +226,16 @@ function apiSearchCertificate_(params) {
   const keyword = (params.keyword || '').trim().toLowerCase();
   if (!keyword) return { success: false, message: 'กรุณากรอกคำค้นหา' };
 
-  const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
+  const certs = readCertificatesSearchIndex_();
   const results = [];
 
   certs.forEach(function (c) {
-    const fullName = decodeText_(c.fullName);
-    const school = decodeText_(c.school);
-    // เทียบทั้งชื่อและโรงเรียน
-    if (fullName.toLowerCase().indexOf(keyword) !== -1 ||
-      school.toLowerCase().indexOf(keyword) !== -1) {
+    if (c.searchText.indexOf(keyword) !== -1) {
       results.push({
         certNo: c.certNo,
         prefix: c.prefix,
-        fullName: fullName,
-        school: school,
+        fullName: c.fullName,
+        school: c.school,
         status: c.status,
         fileUrl: c.fileUrl || ''
       });
