@@ -160,6 +160,21 @@
       }
     }
 
+    // ============ Cache: ลดการเรียก API ซ้ำเมื่อสลับเมนู ============
+    const _apiCache = {};
+    async function callApiCached(action, params = {}, ttlMs = 60000) {
+      const key = action + ':' + JSON.stringify(params);
+      const hit = _apiCache[key];
+      if (hit && (Date.now() - hit.t) < ttlMs) return hit.v;
+      const v = await callApi(action, params);
+      if (v && v.success) _apiCache[key] = { t: Date.now(), v };
+      return v;
+    }
+    function clearApiCache(action) {
+      if (!action) { Object.keys(_apiCache).forEach(k => delete _apiCache[k]); return; }
+      Object.keys(_apiCache).forEach(k => { if (k.indexOf(action + ':') === 0) delete _apiCache[k]; });
+    }
+
     // ============ UI Helper ============
     function showLoading(t = 'กำลังโหลด...') { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.remove('hidden'); }
     function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
@@ -232,7 +247,7 @@
       loaders[page]();
     }
 
-    function refreshCurrentPage() { showPage(currentPage); }
+    function refreshCurrentPage() { clearApiCache(); showPage(currentPage); }
 
     // ============================================================
     //  หน้า 1: Dashboard
@@ -240,7 +255,7 @@
     async function loadDashboard() {
       const el = document.getElementById('page-dashboard');
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
-      const res = await callApi('getDashboard');
+      const res = await callApiCached('getDashboard');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
 
       el.innerHTML = `
@@ -279,7 +294,7 @@
     async function loadCertificates() {
       const el = document.getElementById('page-certificates');
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
-      const res = await callApi('getCertificates');
+      const res = await callApiCached('getCertificates');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
 
       let rows = '';
@@ -326,7 +341,7 @@
       const res = await callApi('generateCertificate', { certNo });
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
-      if (res.success) loadCertificates();
+      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
     async function genAll() {
@@ -335,7 +350,7 @@
       const res = await callApi('generateAll');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
-      if (res.success) loadCertificates();
+      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
     function getStatusBadge(status) {
@@ -349,7 +364,7 @@
     async function loadQuestions() {
       const el = document.getElementById('page-questions');
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
-      const res = await callApi('getQuestions');
+      const res = await callApiCached('getQuestions');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
       questionsData = res.data;
 
@@ -480,7 +495,7 @@
       const res = await callApi('saveQuestion', data, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
-      if (res.success) { closeModal(); loadQuestions(); }
+      if (res.success) { clearApiCache('getQuestions'); clearApiCache('getResults'); clearApiCache('getDashboard'); closeModal(); loadQuestions(); }
     }
 
     async function deleteQuestion(questionId) {
@@ -489,7 +504,7 @@
       const res = await callApi('deleteQuestion', { questionId }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
-      if (res.success) loadQuestions();
+      if (res.success) { clearApiCache('getQuestions'); clearApiCache('getResults'); clearApiCache('getDashboard'); loadQuestions(); }
     }
 
     function closeModal() {
@@ -503,7 +518,7 @@
     async function loadResults() {
       const el = document.getElementById('page-results');
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังคำนวณ...</div>';
-      const res = await callApi('getResults');
+      const res = await callApiCached('getResults');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
 
       if (res.totalResponses === 0) {
@@ -607,7 +622,7 @@
     async function loadSettings() {
       const el = document.getElementById('page-settings');
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังโหลด...</div>';
-      const res = await callApi('getSettings');
+      const res = await callApiCached('getSettings');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
       const s = res.data;
 
@@ -648,10 +663,11 @@
       const res = await callApi('saveSettings', { settings }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) clearApiCache('getSettings');
     }
 
     async function loadUsers() {
-      const res = await callApi('getUsers');
+      const res = await callApiCached('getUsers');
       const el = document.getElementById('usersList');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดไม่สำเร็จ</p>'; return; }
       let html = '<div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50 text-gray-600"><tr><th class="px-3 py-2 text-left">สิทธิ์</th><th class="px-3 py-2 text-left">รหัสผ่าน</th><th class="px-3 py-2 text-left">ชื่อแสดง</th></tr></thead><tbody>';

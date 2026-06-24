@@ -158,7 +158,7 @@ function apiSearchCertificate_(params) {
   const keyword = (params.keyword || '').trim().toLowerCase();
   if (!keyword) return { success: false, message: 'กรุณากรอกคำค้นหา' };
 
-  const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+  const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
   const results = [];
 
   certs.forEach(function (c) {
@@ -233,7 +233,7 @@ function apiGetQuestions_() {
  */
 function apiCheckStatus_(params) {
   const certNo = params.certNo || '';
-  const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+  const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
   const cert = certs.find(function (c) { return String(c.certNo) === String(certNo); });
 
   if (!cert) return { success: false, message: 'ไม่พบเกียรติบัตร' };
@@ -299,6 +299,7 @@ function apiSubmitResponse_(params) {
     certSheet.getRange(cert._rowIndex, statusCol).setValue('พร้อมดาวน์โหลด');
 
     clearSheetCache_(SHEETS.RESPONSES);
+    clearSheetCache_(SHEETS.CERTIFICATES);
 
     return {
       success: true,
@@ -321,7 +322,7 @@ function apiSubmitResponse_(params) {
  * ============================================================
  */
 function apiGetCertificates_() {
-  const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+  const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
   const data = certs.map(function (c) {
     return {
       runNo: c.runNo,
@@ -435,6 +436,7 @@ function createCertificateFile_(cert) {
     certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);          // fileUrl (คอลัมน์ 7)
     certSheet.getRange(cert._rowIndex, 8).setValue(new Date());      // createdAt (คอลัมน์ 8)
     SpreadsheetApp.flush();
+    clearSheetCache_(SHEETS.CERTIFICATES);
 
     // 5. ลบไฟล์ Slides ชั่วคราว (เก็บแค่ PDF) โดยไม่ให้กระทบการบันทึกลิงก์
     let cleanupMessage = '';
@@ -503,6 +505,7 @@ function apiRepairCertificateFiles_() {
     });
 
     SpreadsheetApp.flush();
+    clearSheetCache_(SHEETS.CERTIFICATES);
     return {
       success: true,
       message: 'ซ่อมข้อมูลสำเร็จ: เติมลิงก์ ' + linked + ' รายการ, ลบไฟล์ Slides ชั่วคราว ' + trashed + ' ไฟล์, แชร์ PDF ไม่สำเร็จ ' + shareFailed + ' ไฟล์, ลบ Slides ไม่สำเร็จ ' + trashFailed + ' ไฟล์',
@@ -706,11 +709,11 @@ function getSettingsMap_() {
  * ============================================================
  */
 function apiGetResults_() {
-  const questions = readSheetAsObjects_(SHEETS.QUESTIONS)
+  const questions = readSheetCached_(SHEETS.QUESTIONS, 60)
     .filter(function (q) { return q.active === true || String(q.active).toUpperCase() === 'TRUE'; })
     .sort(function (a, b) { return Number(a.orderNo) - Number(b.orderNo); });
 
-  const responses = readSheetAsObjects_(SHEETS.RESPONSES);
+  const responses = readSheetCached_(SHEETS.RESPONSES, 30);
 
   // แปลง answersJSON เป็น object
   const allAnswers = responses.map(function (r) {
@@ -873,8 +876,8 @@ function interpretMean_(mean) {
  * ============================================================
  */
 function apiGetDashboard_() {
-  const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-  const responses = readSheetAsObjects_(SHEETS.RESPONSES);
+  const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
+  const responses = readSheetCached_(SHEETS.RESPONSES, 30);
 
   let evaluated = 0, notEvaluated = 0, ready = 0, generated = 0;
   certs.forEach(function (c) {
@@ -885,7 +888,7 @@ function apiGetDashboard_() {
   });
 
   // คะแนนเฉลี่ยรวม (จาก rating ทั้งหมด)
-  const questions = readSheetAsObjects_(SHEETS.QUESTIONS)
+  const questions = readSheetCached_(SHEETS.QUESTIONS, 60)
     .filter(function (q) { return q.questionType === 'rating'; });
   const ratingIds = questions.map(function (q) { return q.questionId; });
 
