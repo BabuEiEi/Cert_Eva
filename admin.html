@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบผู้ดูแล - เกียรติบัตร</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
@@ -123,15 +124,12 @@
     </div>
   </div>
 
-  <!-- ============ Loading + Toast ============ -->
+  <!-- ============ Loading ============ -->
   <div id="loading" class="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] hidden">
     <div class="bg-white rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-2xl">
       <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       <p class="text-gray-600 font-medium" id="loadingText">กำลังโหลด...</p>
     </div>
-  </div>
-  <div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
-    <div id="toastBox" class="px-5 py-3 rounded-xl shadow-lg text-white font-medium"></div>
   </div>
 
   <script>
@@ -179,11 +177,30 @@
     function showLoading(t = 'กำลังโหลด...') { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.remove('hidden'); }
     function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
     function showToast(msg, type = 'success') {
-      const box = document.getElementById('toastBox');
-      box.className = 'px-5 py-3 rounded-xl shadow-lg text-white font-medium ' + (type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600');
-      box.textContent = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : 'ℹ ') + msg;
-      document.getElementById('toast').classList.remove('hidden');
-      setTimeout(() => document.getElementById('toast').classList.add('hidden'), 3500);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success',
+        title: msg,
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+        customClass: { popup: 'text-sm' }
+      });
+    }
+    async function confirmAction(title, text, confirmButtonText = 'ตกลง') {
+      const result = await Swal.fire({
+        title: title,
+        text: text,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: confirmButtonText,
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true
+      });
+      return result.isConfirmed;
     }
 
     // ============ Login / Logout ============
@@ -345,7 +362,8 @@
     }
 
     async function genAll() {
-      if (!confirm('ต้องการสร้างเกียรติบัตรทั้งหมดที่ยังไม่มีไฟล์ใช่หรือไม่?\n(อาจใช้เวลาสักครู่)')) return;
+      const confirmed = await confirmAction('สร้างเกียรติบัตรทั้งหมด?', 'ระบบจะสร้างเฉพาะรายการที่ยังไม่มีไฟล์ และอาจใช้เวลาสักครู่', 'สร้างทั้งหมด');
+      if (!confirmed) return;
       showLoading('กำลังสร้างเกียรติบัตรทั้งหมด...');
       const res = await callApi('generateAll');
       hideLoading();
@@ -499,7 +517,8 @@
     }
 
     async function deleteQuestion(questionId) {
-      if (!confirm('ต้องการลบคำถามนี้ใช่หรือไม่?')) return;
+      const confirmed = await confirmAction('ลบคำถามนี้?', 'ระบบจะตั้งคำถามนี้เป็นไม่ใช้งาน โดยไม่ลบข้อมูลเดิมออกจากชีต', 'ลบคำถาม');
+      if (!confirmed) return;
       showLoading('กำลังลบ...');
       const res = await callApi('deleteQuestion', { questionId }, 'POST');
       hideLoading();
@@ -676,7 +695,8 @@
     }
 
     async function regenerateCertNumbers() {
-      if (!confirm('ต้องการรันเลขเกียรติบัตรใหม่ตาม Settings ใช่หรือไม่?\nระบบจะเขียนทับคอลัมน์ runNo และ certNo ในชีต Certificates')) return;
+      const confirmed = await confirmAction('รันเลขเกียรติบัตรใหม่?', 'ระบบจะเขียนทับคอลัมน์ runNo และ certNo ในชีต Certificates ตามค่า Settings ปัจจุบัน', 'รันเลขใหม่');
+      if (!confirmed) return;
       showLoading('กำลังบันทึกและรันเลขเกียรติบัตร...');
       const saveRes = await callApi('saveSettings', { settings: getSettingsFormValues() }, 'POST');
       if (!saveRes.success) {
