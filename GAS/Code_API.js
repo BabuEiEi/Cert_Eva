@@ -51,6 +51,7 @@ function handleRequest_(e) {
       case 'getCertificates': result = apiGetCertificates_(); break;
       case 'generateCertificate': result = apiGenerateCertificate_(params); break;
       case 'generateAll': result = apiGenerateAll_(); break;
+      case 'regenerateCertificateNumbers': result = apiRegenerateCertificateNumbers_(); break;
       case 'repairCertificateFiles': result = apiRepairCertificateFiles_(); break;
       case 'saveQuestion': result = apiSaveQuestion_(params); break;
       case 'deleteQuestion': result = apiDeleteQuestion_(params); break;
@@ -448,6 +449,13 @@ function apiGenerateAll_() {
     message: 'สร้างเสร็จ ' + created + ' ใบ, ข้าม ' + skipped + ' ใบ, ล้มเหลว ' + failed + ' ใบ',
     created: created, skipped: skipped, failed: failed, errors: errors
   };
+}
+
+/**
+ * API: regenerateCertificateNumbers (รันเลขเกียรติบัตรใหม่จาก Settings)
+ */
+function apiRegenerateCertificateNumbers_() {
+  return regenerateCertificateNumbers_();
 }
 
 /**
