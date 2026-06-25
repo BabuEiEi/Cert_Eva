@@ -60,9 +60,9 @@ function setupCertificatesSheet_(ss) {
 
   // ข้อมูลตัวอย่าง 3 รายการ (เก็บเป็นภาษาไทยปกติ)
   const sampleData = [
-    [1, 'เลขที่ สพม.พลอต 0001/2569', 'นาย', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
-    [2, 'เลขที่ สพม.พลอต 0002/2569', 'นางสาว', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
-    [3, 'เลขที่ สพม.พลอต 0003/2569', 'นาย', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
+    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'นาย', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
+    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'นางสาว', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
+    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'นาย', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
   ];
   sheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
 
@@ -155,13 +155,13 @@ function setupSettingsSheet_(ss) {
   const settings = [
     ['startNumber', 1, 'เลขรันนิ่งเริ่มต้นของเกียรติบัตร'],
     ['certCount', 100, 'จำนวนเกียรติบัตรทั้งหมด'],
-    ['certPrefix', 'เลขที่ สพม.พลอต {NO:0000}/2569', 'รูปแบบเลขที่เกียรติบัตร ({NO}=เลขรันนิ่ง, {NO:0000}=เติม 0, {YEAR}=ปี)'],
+    ['certPrefix', 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}', 'รูปแบบเลขที่เกียรติบัตร ({NO}=เลขอารบิก, {NO_TH}=เลขไทย, {NO_TH:๐๐๐๐}=เลขไทยเติม 0, {YEAR_TH}=ปีเลขไทย)'],
     ['folderId', '', '🔴 TODO: ใส่ ID โฟลเดอร์ Google Drive สำหรับเก็บไฟล์ PDF'],
     ['templateId', '', '🔴 TODO: ใส่ ID ไฟล์ Google Slides Template เกียรติบัตร'],
     ['sheetId', ss.getId(), 'ID ของ Spreadsheet นี้ (เติมให้อัตโนมัติแล้ว)'],
     ['projectName', 'โครงการฝึกอบรม ปี 2569', 'ชื่อโครงการ'],
     ['certDate', '21 มิถุนายน 2569', 'วันที่บนเกียรติบัตร'],
-    ['ratingYear', '2569', 'ปีที่ใช้ในรูปแบบ {YEAR}']
+    ['ratingYear', '2569', 'ปีที่ใช้ในรูปแบบ {YEAR} หรือ {YEAR_TH}']
   ];
   sheet.getRange(2, 1, settings.length, headers.length).setValues(settings);
 
@@ -317,12 +317,21 @@ function testEncodeDecode() {
 /**
  * ============================================================
  *  ฟังก์ชันสร้างเลขที่เกียรติบัตรจากรูปแบบ (certPrefix)
- *  รองรับ {NO}, {NO:0000}, {YEAR}
- *  ตัวอย่าง: 'เลขที่ สพม.พลอต {NO:0000}/2569' + runNo=5 => 'เลขที่ สพม.พลอต 0005/2569'
+ *  รองรับ {NO}, {NO:0000}, {NO_TH}, {NO_TH:๐๐๐๐}, {YEAR}, {YEAR_TH}
+ *  ตัวอย่าง: 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}' + runNo=5 => 'เลขที่ สพม.พลอต ๐๐๐๕/๒๕๖๙'
  * ============================================================
  */
 function buildCertNo_(pattern, runNo, year) {
   let result = pattern;
+
+  // แทน {NO_TH:๐๐๐๐} หรือ {NO_TH:0000} (เลขไทย เติม 0 ตามจำนวนหลัก)
+  result = result.replace(/\{NO_TH:([0๐]+)\}/g, function (match, zeros) {
+    const width = zeros.length;
+    return toThaiDigits_(String(runNo).padStart(width, '0'));
+  });
+
+  // แทน {NO_TH} (เลขไทย ไม่เติม 0)
+  result = result.replace(/\{NO_TH\}/g, toThaiDigits_(runNo));
 
   // แทน {NO:0000} (เติม 0 ตามจำนวนหลัก)
   result = result.replace(/\{NO:(0+)\}/g, function (match, zeros) {
@@ -335,7 +344,20 @@ function buildCertNo_(pattern, runNo, year) {
   // แทน {YEAR}
   result = result.replace(/\{YEAR\}/g, String(year || ''));
 
+  // แทน {YEAR_TH}
+  result = result.replace(/\{YEAR_TH\}/g, toThaiDigits_(year || ''));
+
   return result;
+}
+
+function toThaiDigits_(value) {
+  const map = {
+    '0': '๐', '1': '๑', '2': '๒', '3': '๓', '4': '๔',
+    '5': '๕', '6': '๖', '7': '๗', '8': '๘', '9': '๙'
+  };
+  return String(value).replace(/[0-9]/g, function (digit) {
+    return map[digit];
+  });
 }
 
 /**
@@ -356,7 +378,7 @@ function regenerateCertificateNumbers_() {
     const settings = getSettingsMapForNumbering_();
     const startNumber = Number(settings.startNumber) || 1;
     const certCount = Number(settings.certCount) || 0;
-    const certPrefix = settings.certPrefix || 'เลขที่ สพม.พลอต {NO:0000}/{YEAR}';
+    const certPrefix = settings.certPrefix || 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}';
     const year = settings.ratingYear || '';
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -418,5 +440,6 @@ function getSettingsMapForNumbering_() {
 function testBuildCertNo() {
   Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO:0000}/2569', 5));   // เลขที่ สพม.พลอต 0005/2569
   Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO}/2569', 5));        // เลขที่ สพม.พลอต 5/2569
+  Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}', 5, 2569)); // เลขที่ สพม.พลอต ๐๐๐๕/๒๕๖๙
   Logger.log(buildCertNo_('CERT-{NO:000}-{YEAR}', 12, 2569)); // CERT-012-2569
 }

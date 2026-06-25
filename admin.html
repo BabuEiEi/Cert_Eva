@@ -651,10 +651,10 @@
           <form onsubmit="saveSettings(event)" class="space-y-4">
             ${settingInput('projectName', 'ชื่อโครงการ', s.projectName)}
             ${settingInput('certDate', 'วันที่บนเกียรติบัตร', s.certDate)}
-            ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขรันนิ่ง)', s.certPrefix)}
+            ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขอารบิก, {NO_TH:๐๐๐๐}=เลขไทย)', s.certPrefix)}
             ${settingInput('startNumber', 'เลขเริ่มต้น', s.startNumber)}
             ${settingInput('certCount', 'จำนวนเกียรติบัตร', s.certCount)}
-            ${settingInput('ratingYear', 'ปีที่ใช้ในเลขที่ ({YEAR})', s.ratingYear)}
+            ${settingInput('ratingYear', 'ปีที่ใช้ในเลขที่ ({YEAR} / {YEAR_TH})', s.ratingYear)}
             ${settingInput('folderId', 'Drive Folder ID', s.folderId)}
             ${settingInput('templateId', 'Slides Template ID', s.templateId)}
             <div class="flex flex-col sm:flex-row gap-3">
