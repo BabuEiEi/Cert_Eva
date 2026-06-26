@@ -343,6 +343,9 @@
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
           <p class="text-gray-500 text-sm">ทั้งหมด ${res.count} รายการ</p>
           <div class="flex flex-wrap gap-2">
+            <button onclick="openCertificateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+              <span>➕</span> เพิ่มรายชื่อ
+            </button>
             <button onclick="downloadCertificateImportTemplate()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
               <span>⬇️</span> ตัวอย่างไฟล์
             </button>
@@ -394,16 +397,17 @@
       if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
-    function openCertificateModal(payload) {
-      const cert = JSON.parse(decodeURIComponent(payload));
-      document.getElementById('modalTitle').textContent = 'แก้ไขรายชื่อเกียรติบัตร';
+    function openCertificateModal(payload = '') {
+      const isEdit = !!payload;
+      const cert = isEdit ? JSON.parse(decodeURIComponent(payload)) : { runNo: '', certNo: '', fullName: '', school: '', status: 'ยังไม่ประเมิน' };
+      document.getElementById('modalTitle').textContent = isEdit ? 'แก้ไขรายชื่อเกียรติบัตร' : 'เพิ่มรายชื่อเกียรติบัตร';
       document.getElementById('modalBody').innerHTML = `
         <form onsubmit="saveCertificate(event)" class="space-y-4">
-          <input type="hidden" id="cert_originalCertNo" value="${escapeHtml(cert.certNo)}">
+          <input type="hidden" id="cert_originalCertNo" value="${isEdit ? escapeHtml(cert.certNo) : ''}">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">No.</label>
-              <input type="number" id="cert_runNo" value="${escapeHtml(cert.runNo)}" class="w-full px-3 py-2 border rounded-lg">
+              <input type="number" id="cert_runNo" value="${escapeHtml(cert.runNo)}" placeholder="ว่างไว้เพื่อรันต่ออัตโนมัติ" class="w-full px-3 py-2 border rounded-lg">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
@@ -416,7 +420,7 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่เกียรติบัตร</label>
-            <input type="text" id="cert_certNo" value="${escapeHtml(cert.certNo)}" required class="w-full px-3 py-2 border rounded-lg">
+            <input type="text" id="cert_certNo" value="${escapeHtml(cert.certNo)}" placeholder="ว่างไว้เพื่อสร้างจากรูปแบบใน Settings" class="w-full px-3 py-2 border rounded-lg">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
@@ -426,7 +430,7 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">โรงเรียน</label>
             <input type="text" id="cert_school" value="${escapeHtml(cert.school)}" class="w-full px-3 py-2 border rounded-lg">
           </div>
-          <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">ถ้าแก้ไขชื่อ โรงเรียน หรือเลขที่ หลังสร้างไฟล์แล้ว ไฟล์ PDF เดิมจะไม่ถูกสร้างใหม่อัตโนมัติ ให้กดสร้างใหม่เมื่อจำเป็น</p>
+          <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">${isEdit ? 'ถ้าแก้ไขชื่อ โรงเรียน หรือเลขที่ หลังสร้างไฟล์แล้ว ไฟล์ PDF เดิมจะไม่ถูกสร้างใหม่อัตโนมัติ ให้กดสร้างใหม่เมื่อจำเป็น' : 'ถ้าไม่กรอก No. หรือเลขที่เกียรติบัตร ระบบจะสร้างต่อจากรายการล่าสุดตามรูปแบบใน Settings'}</p>
           <div class="flex gap-3 pt-2">
             <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-medium">บันทึก</button>
             <button type="button" onclick="closeModal()" class="px-5 bg-gray-200 hover:bg-gray-300 rounded-xl">ยกเลิก</button>

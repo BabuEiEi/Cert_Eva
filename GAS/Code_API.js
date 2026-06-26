@@ -523,10 +523,7 @@ function apiSaveCertificate_(params) {
     lock.waitLock(10000);
 
     const originalCertNo = String(params.originalCertNo || '').trim();
-    const certNo = String(params.certNo || '').trim();
     const fullName = String(params.fullName || '').trim();
-    if (!originalCertNo) return { success: false, message: 'ไม่พบเลขที่เดิมของเกียรติบัตร' };
-    if (!certNo) return { success: false, message: 'กรุณากรอกเลขที่เกียรติบัตร' };
     if (!fullName) return { success: false, message: 'กรุณากรอกชื่อ-นามสกุล' };
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -534,35 +531,54 @@ function apiSaveCertificate_(params) {
     if (!sheet) return { success: false, message: 'ไม่พบชีต Certificates' };
 
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
-    const existing = certs.find(function (cert) { return String(cert.certNo) === originalCertNo; });
-    if (!existing) return { success: false, message: 'ไม่พบรายชื่อเกียรติบัตรที่ต้องการแก้ไข' };
+    const isEdit = !!originalCertNo;
+    const existing = isEdit ? certs.find(function (cert) { return String(cert.certNo) === originalCertNo; }) : null;
+    if (isEdit && !existing) return { success: false, message: 'ไม่พบรายชื่อเกียรติบัตรที่ต้องการแก้ไข' };
+
+    const settings = getSettingsMap_();
+    const runNo = Number(params.runNo) || getNextCertificateRunNo_(certs, settings);
+    const certNo = String(params.certNo || buildCertNo_(settings.certPrefix || 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}', runNo, settings.ratingYear || '')).trim();
+    if (!certNo) return { success: false, message: 'กรุณากรอกเลขที่เกียรติบัตร' };
 
     const duplicated = certs.find(function (cert) {
-      return String(cert.certNo) === certNo && String(cert.certNo) !== originalCertNo;
+      return String(cert.certNo) === certNo && (!isEdit || String(cert.certNo) !== originalCertNo);
     });
     if (duplicated) return { success: false, message: 'เลขที่เกียรติบัตรนี้มีอยู่แล้ว' };
 
     const row = [
-      Number(params.runNo) || existing.runNo || '',
+      runNo,
       certNo,
       fullName,
       String(params.school || '').trim(),
-      params.status || existing.status || 'ยังไม่ประเมิน',
-      existing.fileUrl || '',
-      existing.createdAt || ''
+      params.status || (existing && existing.status) || 'ยังไม่ประเมิน',
+      (existing && existing.fileUrl) || '',
+      (existing && existing.createdAt) || ''
     ];
 
-    sheet.getRange(existing._rowIndex, 1, 1, row.length).setValues([row]);
-    const updatedResponses = updateCertificateResponses_(originalCertNo, certNo, fullName, String(params.school || '').trim());
+    if (isEdit) {
+      sheet.getRange(existing._rowIndex, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, row.length).setValues([row]);
+    }
+    const updatedResponses = isEdit ? updateCertificateResponses_(originalCertNo, certNo, fullName, String(params.school || '').trim()) : 0;
     SpreadsheetApp.flush();
     clearSheetCache_(SHEETS.CERTIFICATES);
     if (updatedResponses > 0) clearSheetCache_(SHEETS.RESPONSES);
-    return { success: true, message: 'บันทึกรายชื่อสำเร็จ' + (updatedResponses > 0 ? ' และอัปเดตผลประเมินที่เกี่ยวข้อง ' + updatedResponses + ' รายการ' : '') };
+    return { success: true, message: (isEdit ? 'บันทึกรายชื่อสำเร็จ' : 'เพิ่มรายชื่อสำเร็จ') + (updatedResponses > 0 ? ' และอัปเดตผลประเมินที่เกี่ยวข้อง ' + updatedResponses + ' รายการ' : ''), certNo: certNo, runNo: runNo };
   } catch (err) {
     return { success: false, message: 'บันทึกรายชื่อไม่สำเร็จ: ' + err.message };
   } finally {
     lock.releaseLock();
   }
+}
+
+function getNextCertificateRunNo_(certs, settings) {
+  let maxRunNo = 0;
+  certs.forEach(function (cert) {
+    const runNo = Number(cert.runNo);
+    if (!isNaN(runNo) && runNo > maxRunNo) maxRunNo = runNo;
+  });
+  return maxRunNo > 0 ? maxRunNo + 1 : (Number(settings.startNumber) || 1);
 }
 
 function apiDeleteCertificate_(params) {
