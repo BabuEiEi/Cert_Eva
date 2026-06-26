@@ -119,6 +119,40 @@ function readSheetCached_(sheetName, cacheSeconds) {
   return data;
 }
 
+function getSheetColumnIndex_(sheet, headerName) {
+  if (!sheet || sheet.getLastColumn() < 1) return 0;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const index = headers.indexOf(headerName);
+  return index === -1 ? 0 : index + 1;
+}
+
+function getResponseCertNoSet_() {
+  const responses = readSheetCached_(SHEETS.RESPONSES, 30);
+  const set = {};
+  responses.forEach(function (response) {
+    if (response.certNo) set[String(response.certNo)] = true;
+  });
+  return set;
+}
+
+function getCertificateStatus_(cert, responseCertNoSet) {
+  if (cert.fileUrl) return 'พร้อมดาวน์โหลด';
+  if (responseCertNoSet && responseCertNoSet[String(cert.certNo)]) return 'ประเมินแล้ว';
+  return 'ยังไม่ประเมิน';
+}
+
+function updateCertificateStatus_(sheet, rowIndex, status) {
+  const statusCol = getSheetColumnIndex_(sheet, 'status');
+  if (statusCol) sheet.getRange(rowIndex, statusCol).setValue(status);
+}
+
+function updateCertificateFileInfo_(sheet, rowIndex, fileUrl, createdAt) {
+  const fileUrlCol = getSheetColumnIndex_(sheet, 'fileUrl');
+  const createdAtCol = getSheetColumnIndex_(sheet, 'createdAt');
+  if (fileUrlCol) sheet.getRange(rowIndex, fileUrlCol).setValue(fileUrl);
+  if (createdAtCol) sheet.getRange(rowIndex, createdAtCol).setValue(createdAt);
+}
+
 // อ่าน/เขียน cache ขนาดใหญ่แบบแบ่งก้อน เพื่อเลี่ยง limit ต่อ key ของ Apps Script CacheService
 function getJsonCache_(key) {
   const cache = CacheService.getScriptCache();
@@ -166,18 +200,17 @@ function readCertificatesSearchIndex_() {
   const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  // อ่านเฉพาะคอลัมน์ที่ใช้ค้นหา/แสดงผล: certNo ถึง fileUrl ไม่อ่านทั้งชีต
-  const values = sheet.getRange(2, 2, sheet.getLastRow() - 1, 6).getValues();
-  const data = values.map(function (row) {
-    const fullName = decodeText_(row[2]);
-    const school = decodeText_(row[3]);
+  const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+  const responseCertNoSet = getResponseCertNoSet_();
+  const data = certs.map(function (cert) {
+    const fullName = decodeText_(cert.fullName);
+    const school = decodeText_(cert.school);
     return {
-      certNo: row[0],
-      prefix: row[1],
+      certNo: cert.certNo,
       fullName: fullName,
       school: school,
-      status: row[4],
-      fileUrl: row[5] || '',
+      status: getCertificateStatus_(cert, responseCertNoSet),
+      fileUrl: cert.fileUrl || '',
       searchText: (fullName + ' ' + school).toLowerCase()
     };
   });
@@ -234,7 +267,6 @@ function apiSearchCertificate_(params) {
     if (c.searchText.indexOf(keyword) !== -1) {
       results.push({
         certNo: c.certNo,
-        prefix: c.prefix,
         fullName: c.fullName,
         school: c.school,
         status: c.status,
@@ -306,7 +338,7 @@ function apiCheckStatus_(params) {
   return {
     success: true,
     certNo: cert.certNo,
-    status: cert.status,
+    status: getCertificateStatus_(cert, getResponseCertNoSet_()),
     fileUrl: cert.fileUrl || ''
   };
 }
@@ -358,10 +390,10 @@ function apiSubmitResponse_(params) {
       JSON.stringify(answersObj)
     ]);
 
-    // อัปเดตสถานะเกียรติบัตร => "พร้อมดาวน์โหลด"
+    // อัปเดตสถานะเกียรติบัตรอัตโนมัติ: มีไฟล์แล้ว = พร้อมดาวน์โหลด, ยังไม่มีไฟล์ = ประเมินแล้ว
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
-    const statusCol = 6; // คอลัมน์ status (ลำดับที่ 6)
-    certSheet.getRange(cert._rowIndex, statusCol).setValue('พร้อมดาวน์โหลด');
+    const newStatus = cert.fileUrl ? 'พร้อมดาวน์โหลด' : 'ประเมินแล้ว';
+    updateCertificateStatus_(certSheet, cert._rowIndex, newStatus);
 
     clearSheetCache_(SHEETS.RESPONSES);
     clearSheetCache_(SHEETS.CERTIFICATES);
@@ -370,7 +402,7 @@ function apiSubmitResponse_(params) {
       success: true,
       message: 'บันทึกแบบประเมินสำเร็จ',
       certNo: certNo,
-      newStatus: 'พร้อมดาวน์โหลด',
+      newStatus: newStatus,
       fileUrl: cert.fileUrl || ''
     };
 
@@ -388,14 +420,14 @@ function apiSubmitResponse_(params) {
  */
 function apiGetCertificates_() {
   const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
+  const responseCertNoSet = getResponseCertNoSet_();
   const data = certs.map(function (c) {
     return {
       runNo: c.runNo,
       certNo: c.certNo,
-      prefix: c.prefix,
       fullName: decodeText_(c.fullName),
       school: decodeText_(c.school),
-      status: c.status,
+      status: getCertificateStatus_(c, responseCertNoSet),
       fileUrl: c.fileUrl || ''
     };
   });
@@ -484,8 +516,9 @@ function createCertificateFile_(cert) {
 
     // 2. เปิด Slides แล้วแทนค่า placeholder
     const slides = SlidesApp.openById(copyFile.getId());
-    slides.replaceAllText('{{prefix}}', cert.prefix || '');
+    slides.replaceAllText('{{prefix}}', '');
     slides.replaceAllText('{{fullName}}', fullName);
+    slides.replaceAllText('{{school}}', decodeText_(cert.school));
     slides.replaceAllText('{{certNo}}', cert.certNo);
     slides.replaceAllText('{{date}}', settings.certDate || '');
     slides.replaceAllText('{{projectName}}', settings.projectName || '');
@@ -505,8 +538,8 @@ function createCertificateFile_(cert) {
     const pdfUrl = 'https://drive.google.com/file/d/' + pdfFile.getId() + '/view';
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
-    certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);          // fileUrl (คอลัมน์ 7)
-    certSheet.getRange(cert._rowIndex, 8).setValue(new Date());      // createdAt (คอลัมน์ 8)
+    updateCertificateFileInfo_(certSheet, cert._rowIndex, pdfUrl, new Date());
+    updateCertificateStatus_(certSheet, cert._rowIndex, 'พร้อมดาวน์โหลด');
     SpreadsheetApp.flush();
     clearSheetCache_(SHEETS.CERTIFICATES);
 
@@ -558,8 +591,8 @@ function apiRepairCertificateFiles_() {
           } catch (sharingErr) {
             shareFailed++;
           }
-          certSheet.getRange(cert._rowIndex, 7).setValue(pdfUrl);
-          certSheet.getRange(cert._rowIndex, 8).setValue(pdfFile.getDateCreated());
+          updateCertificateFileInfo_(certSheet, cert._rowIndex, pdfUrl, pdfFile.getDateCreated());
+          updateCertificateStatus_(certSheet, cert._rowIndex, 'พร้อมดาวน์โหลด');
           linked++;
         }
       }
@@ -950,12 +983,14 @@ function interpretMean_(mean) {
 function apiGetDashboard_() {
   const certs = readSheetCached_(SHEETS.CERTIFICATES, 30);
   const responses = readSheetCached_(SHEETS.RESPONSES, 30);
+  const responseCertNoSet = getResponseCertNoSet_();
 
   let evaluated = 0, notEvaluated = 0, ready = 0, generated = 0;
   certs.forEach(function (c) {
-    if (c.status === 'พร้อมดาวน์โหลด') ready++;
-    if (c.status === 'ยังไม่ประเมิน') notEvaluated++;
-    if (c.status === 'ประเมินแล้ว') evaluated++;
+    const status = getCertificateStatus_(c, responseCertNoSet);
+    if (status === 'พร้อมดาวน์โหลด') ready++;
+    if (status === 'ยังไม่ประเมิน') notEvaluated++;
+    if (status === 'ประเมินแล้ว') evaluated++;
     if (c.fileUrl) generated++;
   });
 

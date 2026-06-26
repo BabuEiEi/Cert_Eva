@@ -55,14 +55,14 @@ function setupCertificatesSheet_(ss) {
   sheet.clear();
 
   // หัวคอลัมน์
-  const headers = ['runNo', 'certNo', 'prefix', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
+  const headers = ['runNo', 'certNo', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
   // ข้อมูลตัวอย่าง 3 รายการ (เก็บเป็นภาษาไทยปกติ)
   const sampleData = [
-    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'นาย', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
-    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'นางสาว', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
-    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'นาย', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
+    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
+    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
+    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
   ];
   sheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
 
@@ -273,16 +273,20 @@ function isLikelyBase64_(text) {
 function migrateBase64TextToThai() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const targets = [
-    { sheetName: SHEETS.CERTIFICATES, cols: [4, 5] },
-    { sheetName: SHEETS.RESPONSES, cols: [3, 4] }
+    { sheetName: SHEETS.CERTIFICATES, headers: ['fullName', 'school'] },
+    { sheetName: SHEETS.RESPONSES, headers: ['fullName', 'school'] }
   ];
   let changed = 0;
 
   targets.forEach(function (target) {
     const sheet = ss.getSheetByName(target.sheetName);
     if (!sheet || sheet.getLastRow() < 2) return;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const cols = target.headers
+      .map(function (header) { return headers.indexOf(header) + 1; })
+      .filter(function (col) { return col > 0; });
 
-    target.cols.forEach(function (col) {
+    cols.forEach(function (col) {
       const range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
       const values = range.getValues();
       const updated = values.map(function (row) {
@@ -296,6 +300,31 @@ function migrateBase64TextToThai() {
   });
 
   SpreadsheetApp.getUi().alert('แปลงข้อมูล Base64 เป็นภาษาไทยปกติแล้ว ' + changed + ' ช่อง');
+}
+
+/**
+ * ย้าย schema Certificates เดิมที่มี prefix ให้เป็น schema ใหม่ที่ไม่มี prefix
+ * วิธีใช้: รันฟังก์ชันนี้ครั้งเดียวหลังอัปเดตโค้ด ถ้าชีตเดิมยังมีคอลัมน์ prefix
+ */
+function migrateCertificatesRemovePrefix() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('ไม่พบชีต Certificates');
+    return;
+  }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const prefixIndex = headers.indexOf('prefix');
+  if (prefixIndex === -1) {
+    SpreadsheetApp.getUi().alert('ชีต Certificates ไม่มีคอลัมน์ prefix อยู่แล้ว');
+    return;
+  }
+
+  sheet.deleteColumn(prefixIndex + 1);
+  SpreadsheetApp.flush();
+  if (typeof clearSheetCache_ === 'function') clearSheetCache_(SHEETS.CERTIFICATES);
+  SpreadsheetApp.getUi().alert('ลบคอลัมน์ prefix จากชีต Certificates เรียบร้อยแล้ว');
 }
 
 /**
