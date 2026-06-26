@@ -692,10 +692,17 @@ function apiGenerateCertificate_(params) {
     lock.waitLock(30000);
 
     const certNo = params.certNo || '';
+    const force = params.force === true || String(params.force).toUpperCase() === 'TRUE';
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
     const cert = certs.find(function (c) { return String(c.certNo) === String(certNo); });
     if (!cert) return { success: false, message: 'ไม่พบเกียรติบัตร' };
 
+    if (cert.fileUrl && force) {
+      trashCertificateFile_(cert.fileUrl);
+      clearCertificateFileInfo_(cert);
+      cert.fileUrl = '';
+      cert.createdAt = '';
+    }
     const result = createCertificateFile_(cert);
     return result;
 
@@ -704,6 +711,16 @@ function apiGenerateCertificate_(params) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function clearCertificateFileInfo_(cert) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+  if (!sheet) return;
+  updateCertificateFileInfo_(sheet, cert._rowIndex, '', '');
+  updateCertificateStatus_(sheet, cert._rowIndex, getCertificateStatus_(Object.assign({}, cert, { fileUrl: '' }), getResponseCertNoSet_()));
+  SpreadsheetApp.flush();
+  clearSheetCache_(SHEETS.CERTIFICATES);
 }
 
 /**

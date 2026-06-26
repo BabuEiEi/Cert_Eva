@@ -321,7 +321,7 @@
         const badge = getStatusBadge(c.status);
         const certPayload = encodeURIComponent(JSON.stringify(c));
         const fileBtn = c.fileUrl
-          ? `<a href="${escapeHtml(c.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-xs">เปิดไฟล์</a>`
+          ? `<div class="flex justify-center gap-2"><a href="${escapeHtml(c.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-xs">เปิดไฟล์</a><button onclick="regenOneFromPayload('${certPayload}')" class="text-purple-600 hover:bg-purple-50 px-2 py-1 rounded text-xs">สร้างใหม่</button></div>`
           : `<button onclick="genOneFromPayload('${certPayload}')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-xs">สร้าง</button>`;
         rows += `<tr class="border-b hover:bg-gray-50">
           <td class="px-4 py-3">${escapeHtml(c.runNo)}</td>
@@ -374,9 +374,9 @@
         </div>`;
     }
 
-    async function genOne(certNo) {
-      showLoading('กำลังสร้างเกียรติบัตร...');
-      const res = await callApi('generateCertificate', { certNo });
+    async function genOne(certNo, force = false) {
+      showLoading(force ? 'กำลังสร้างเกียรติบัตรใหม่...' : 'กำลังสร้างเกียรติบัตร...');
+      const res = await callApi('generateCertificate', { certNo, force }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
       if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
@@ -385,6 +385,13 @@
     function genOneFromPayload(payload) {
       const cert = JSON.parse(decodeURIComponent(payload));
       genOne(cert.certNo);
+    }
+
+    async function regenOneFromPayload(payload) {
+      const cert = JSON.parse(decodeURIComponent(payload));
+      const confirmed = await confirmAction('สร้างไฟล์เกียรติบัตรใหม่?', 'ระบบจะย้ายไฟล์ PDF เดิมไปถังขยะ แล้วสร้างไฟล์ใหม่จากข้อมูลล่าสุด', 'สร้างใหม่');
+      if (!confirmed) return;
+      genOne(cert.certNo, true);
     }
 
     async function genAll() {
