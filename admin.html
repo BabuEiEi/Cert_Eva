@@ -319,9 +319,10 @@
       let rows = '';
       res.data.forEach(c => {
         const badge = getStatusBadge(c.status);
+        const certPayload = encodeURIComponent(JSON.stringify(c));
         const fileBtn = c.fileUrl
-          ? `<a href="${c.fileUrl}" target="_blank" class="text-blue-600 hover:underline text-xs">เปิดไฟล์</a>`
-          : `<button onclick='genOne(${JSON.stringify(c.certNo)})' class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-xs">สร้าง</button>`;
+          ? `<a href="${escapeHtml(c.fileUrl)}" target="_blank" class="text-blue-600 hover:underline text-xs">เปิดไฟล์</a>`
+          : `<button onclick="genOneFromPayload('${certPayload}')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg text-xs">สร้าง</button>`;
         rows += `<tr class="border-b hover:bg-gray-50">
           <td class="px-4 py-3">${escapeHtml(c.runNo)}</td>
           <td class="px-4 py-3 font-medium">${escapeHtml(c.certNo)}</td>
@@ -329,6 +330,12 @@
           <td class="px-4 py-3 text-gray-600">${escapeHtml(c.school)}</td>
           <td class="px-4 py-3">${badge}</td>
           <td class="px-4 py-3 text-center">${fileBtn}</td>
+          <td class="px-4 py-3 text-center">
+            <div class="flex justify-center gap-2">
+              <button onclick="openCertificateModal('${certPayload}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs">แก้ไข</button>
+              <button onclick="deleteCertificate('${escapeJsAttr(c.certNo)}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded text-xs">ลบ</button>
+            </div>
+          </td>
         </tr>`;
       });
 
@@ -355,7 +362,7 @@
                 <tr>
                   <th class="px-4 py-3">No.</th><th class="px-4 py-3">เลขที่</th>
                   <th class="px-4 py-3">ชื่อ-นามสกุล</th><th class="px-4 py-3">โรงเรียน</th>
-                  <th class="px-4 py-3">สถานะ</th><th class="px-4 py-3 text-center">ไฟล์</th>
+                  <th class="px-4 py-3">สถานะ</th><th class="px-4 py-3 text-center">ไฟล์</th><th class="px-4 py-3 text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
@@ -372,11 +379,99 @@
       if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
+    function genOneFromPayload(payload) {
+      const cert = JSON.parse(decodeURIComponent(payload));
+      genOne(cert.certNo);
+    }
+
     async function genAll() {
       const confirmed = await confirmAction('สร้างเกียรติบัตรทั้งหมด?', 'ระบบจะสร้างเฉพาะรายการที่ยังไม่มีไฟล์ และอาจใช้เวลาสักครู่', 'สร้างทั้งหมด');
       if (!confirmed) return;
       showLoading('กำลังสร้างเกียรติบัตรทั้งหมด...');
       const res = await callApi('generateAll');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
+    }
+
+    function openCertificateModal(payload) {
+      const cert = JSON.parse(decodeURIComponent(payload));
+      document.getElementById('modalTitle').textContent = 'แก้ไขรายชื่อเกียรติบัตร';
+      document.getElementById('modalBody').innerHTML = `
+        <form onsubmit="saveCertificate(event)" class="space-y-4">
+          <input type="hidden" id="cert_originalCertNo" value="${escapeHtml(cert.certNo)}">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">No.</label>
+              <input type="number" id="cert_runNo" value="${escapeHtml(cert.runNo)}" class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <select id="cert_status" class="w-full px-3 py-2 border rounded-lg">
+                ${certificateStatusOption('ยังไม่ประเมิน', cert.status)}
+                ${certificateStatusOption('ประเมินแล้ว', cert.status)}
+                ${certificateStatusOption('พร้อมดาวน์โหลด', cert.status)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่เกียรติบัตร</label>
+            <input type="text" id="cert_certNo" value="${escapeHtml(cert.certNo)}" required class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
+            <input type="text" id="cert_fullName" value="${escapeHtml(cert.fullName)}" required class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">โรงเรียน</label>
+            <input type="text" id="cert_school" value="${escapeHtml(cert.school)}" class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">ถ้าแก้ไขชื่อ โรงเรียน หรือเลขที่ หลังสร้างไฟล์แล้ว ไฟล์ PDF เดิมจะไม่ถูกสร้างใหม่อัตโนมัติ ให้กดสร้างใหม่เมื่อจำเป็น</p>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-medium">บันทึก</button>
+            <button type="button" onclick="closeModal()" class="px-5 bg-gray-200 hover:bg-gray-300 rounded-xl">ยกเลิก</button>
+          </div>
+        </form>`;
+      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('modal').classList.add('flex');
+    }
+
+    function certificateStatusOption(value, current) {
+      return `<option value="${escapeHtml(value)}" ${value === current ? 'selected' : ''}>${escapeHtml(value)}</option>`;
+    }
+
+    async function saveCertificate(event) {
+      event.preventDefault();
+      const data = {
+        originalCertNo: document.getElementById('cert_originalCertNo').value,
+        runNo: document.getElementById('cert_runNo').value,
+        certNo: document.getElementById('cert_certNo').value,
+        fullName: document.getElementById('cert_fullName').value,
+        school: document.getElementById('cert_school').value,
+        status: document.getElementById('cert_status').value
+      };
+      showLoading('กำลังบันทึกรายชื่อ...');
+      const res = await callApi('saveCertificate', data, 'POST');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); closeModal(); loadCertificates(); }
+    }
+
+    async function deleteCertificate(certNo) {
+      const confirmed = await Swal.fire({
+        title: 'ลบรายชื่อนี้?',
+        html: '<div class="text-left text-sm text-gray-600">ระบบจะลบแถวนี้ออกจากชีต Certificates และถ้ามีไฟล์เกียรติบัตรใน Drive จะย้ายไฟล์นั้นไปถังขยะด้วย<br><br>ผลการประเมินเดิมในชีต Responses จะยังไม่ถูกลบ</div>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ลบรายชื่อ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true
+      });
+      if (!confirmed.isConfirmed) return;
+      showLoading('กำลังลบรายชื่อ...');
+      const res = await callApi('deleteCertificate', { certNo }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
       if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
@@ -531,6 +626,15 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function escapeJsAttr(value) {
+      return String(value === undefined || value === null ? '' : value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
     }
 
     // ============================================================

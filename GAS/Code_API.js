@@ -50,6 +50,8 @@ function handleRequest_(e) {
       case 'submitResponse': result = apiSubmitResponse_(params); break;
       case 'getCertificates': result = apiGetCertificates_(); break;
       case 'importCertificates': result = apiImportCertificates_(params); break;
+      case 'saveCertificate': result = apiSaveCertificate_(params); break;
+      case 'deleteCertificate': result = apiDeleteCertificate_(params); break;
       case 'generateCertificate': result = apiGenerateCertificate_(params); break;
       case 'generateAll': result = apiGenerateAll_(); break;
       case 'regenerateCertificateNumbers': result = apiRegenerateCertificateNumbers_(); break;
@@ -508,6 +510,131 @@ function apiImportCertificates_(params) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * ============================================================
+ *  API: saveCertificate / deleteCertificate (แก้ไข/ลบรายชื่อเกียรติบัตร)
+ * ============================================================
+ */
+function apiSaveCertificate_(params) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const originalCertNo = String(params.originalCertNo || '').trim();
+    const certNo = String(params.certNo || '').trim();
+    const fullName = String(params.fullName || '').trim();
+    if (!originalCertNo) return { success: false, message: 'ไม่พบเลขที่เดิมของเกียรติบัตร' };
+    if (!certNo) return { success: false, message: 'กรุณากรอกเลขที่เกียรติบัตร' };
+    if (!fullName) return { success: false, message: 'กรุณากรอกชื่อ-นามสกุล' };
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+    if (!sheet) return { success: false, message: 'ไม่พบชีต Certificates' };
+
+    const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+    const existing = certs.find(function (cert) { return String(cert.certNo) === originalCertNo; });
+    if (!existing) return { success: false, message: 'ไม่พบรายชื่อเกียรติบัตรที่ต้องการแก้ไข' };
+
+    const duplicated = certs.find(function (cert) {
+      return String(cert.certNo) === certNo && String(cert.certNo) !== originalCertNo;
+    });
+    if (duplicated) return { success: false, message: 'เลขที่เกียรติบัตรนี้มีอยู่แล้ว' };
+
+    const row = [
+      Number(params.runNo) || existing.runNo || '',
+      certNo,
+      fullName,
+      String(params.school || '').trim(),
+      params.status || existing.status || 'ยังไม่ประเมิน',
+      existing.fileUrl || '',
+      existing.createdAt || ''
+    ];
+
+    sheet.getRange(existing._rowIndex, 1, 1, row.length).setValues([row]);
+    const updatedResponses = updateCertificateResponses_(originalCertNo, certNo, fullName, String(params.school || '').trim());
+    SpreadsheetApp.flush();
+    clearSheetCache_(SHEETS.CERTIFICATES);
+    if (updatedResponses > 0) clearSheetCache_(SHEETS.RESPONSES);
+    return { success: true, message: 'บันทึกรายชื่อสำเร็จ' + (updatedResponses > 0 ? ' และอัปเดตผลประเมินที่เกี่ยวข้อง ' + updatedResponses + ' รายการ' : '') };
+  } catch (err) {
+    return { success: false, message: 'บันทึกรายชื่อไม่สำเร็จ: ' + err.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function apiDeleteCertificate_(params) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const certNo = String(params.certNo || '').trim();
+    if (!certNo) return { success: false, message: 'ไม่พบเลขที่เกียรติบัตร' };
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+    if (!sheet) return { success: false, message: 'ไม่พบชีต Certificates' };
+
+    const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+    const existing = certs.find(function (cert) { return String(cert.certNo) === certNo; });
+    if (!existing) return { success: false, message: 'ไม่พบรายชื่อเกียรติบัตรที่ต้องการลบ' };
+
+    const trashResult = trashCertificateFile_(existing.fileUrl);
+    sheet.deleteRow(existing._rowIndex);
+    SpreadsheetApp.flush();
+    clearSheetCache_(SHEETS.CERTIFICATES);
+
+    return {
+      success: true,
+      message: 'ลบรายชื่อสำเร็จ' + trashResult.message,
+      fileTrashed: trashResult.trashed,
+      fileTrashError: trashResult.error || ''
+    };
+  } catch (err) {
+    return { success: false, message: 'ลบรายชื่อไม่สำเร็จ: ' + err.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function trashCertificateFile_(fileUrl) {
+  if (!fileUrl) return { trashed: false, message: ' (ไม่มีไฟล์เกียรติบัตรให้ลบ)' };
+  const fileId = extractDriveFileId_(fileUrl);
+  if (!fileId) return { trashed: false, message: ' แต่ไม่พบรหัสไฟล์จากลิงก์เกียรติบัตร', error: 'missing_file_id' };
+
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+    return { trashed: true, message: ' และย้ายไฟล์เกียรติบัตรไปถังขยะแล้ว' };
+  } catch (err) {
+    return { trashed: false, message: ' แต่ลบไฟล์เกียรติบัตรใน Drive ไม่สำเร็จ: ' + err.message, error: err.message };
+  }
+}
+
+function extractDriveFileId_(url) {
+  const text = String(url || '');
+  let match = text.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  match = text.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  return '';
+}
+
+function updateCertificateResponses_(oldCertNo, newCertNo, fullName, school) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.RESPONSES);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+
+  const responses = readSheetAsObjects_(SHEETS.RESPONSES);
+  let updated = 0;
+  responses.forEach(function (response) {
+    if (String(response.certNo) === String(oldCertNo)) {
+      sheet.getRange(response._rowIndex, 2, 1, 3).setValues([[newCertNo, fullName, school]]);
+      updated++;
+    }
+  });
+  return updated;
 }
 
 /**
