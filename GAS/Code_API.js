@@ -581,15 +581,19 @@ function apiDeleteCertificate_(params) {
     const existing = certs.find(function (cert) { return String(cert.certNo) === certNo; });
     if (!existing) return { success: false, message: 'ไม่พบรายชื่อเกียรติบัตรที่ต้องการลบ' };
 
+    const deleteResponses = params.deleteResponses === true || String(params.deleteResponses).toUpperCase() === 'TRUE';
     const trashResult = trashCertificateFile_(existing.fileUrl);
+    const deletedResponses = deleteResponses ? deleteCertificateResponses_(certNo) : 0;
     sheet.deleteRow(existing._rowIndex);
     SpreadsheetApp.flush();
     clearSheetCache_(SHEETS.CERTIFICATES);
+    if (deletedResponses > 0) clearSheetCache_(SHEETS.RESPONSES);
 
     return {
       success: true,
-      message: 'ลบรายชื่อสำเร็จ' + trashResult.message,
+      message: 'ลบรายชื่อสำเร็จ' + trashResult.message + (deleteResponses ? ' และลบผลการประเมิน ' + deletedResponses + ' รายการ' : ' โดยเก็บผลการประเมินเดิมไว้'),
       fileTrashed: trashResult.trashed,
+      deletedResponses: deletedResponses,
       fileTrashError: trashResult.error || ''
     };
   } catch (err) {
@@ -635,6 +639,23 @@ function updateCertificateResponses_(oldCertNo, newCertNo, fullName, school) {
     }
   });
   return updated;
+}
+
+function deleteCertificateResponses_(certNo) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.RESPONSES);
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+
+  const responses = readSheetAsObjects_(SHEETS.RESPONSES);
+  const rowsToDelete = [];
+  responses.forEach(function (response) {
+    if (String(response.certNo) === String(certNo)) rowsToDelete.push(response._rowIndex);
+  });
+
+  rowsToDelete.sort(function (a, b) { return b - a; }).forEach(function (rowIndex) {
+    sheet.deleteRow(rowIndex);
+  });
+  return rowsToDelete.length;
 }
 
 /**

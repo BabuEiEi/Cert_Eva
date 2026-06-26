@@ -460,21 +460,30 @@
     async function deleteCertificate(certNo) {
       const confirmed = await Swal.fire({
         title: 'ลบรายชื่อนี้?',
-        html: '<div class="text-left text-sm text-gray-600">ระบบจะลบแถวนี้ออกจากชีต Certificates และถ้ามีไฟล์เกียรติบัตรใน Drive จะย้ายไฟล์นั้นไปถังขยะด้วย<br><br>ผลการประเมินเดิมในชีต Responses จะยังไม่ถูกลบ</div>',
+        html: `<div class="text-left text-sm text-gray-600 space-y-3">
+          <p>ระบบจะลบแถวนี้ออกจากชีต Certificates และถ้ามีไฟล์เกียรติบัตรใน Drive จะย้ายไฟล์นั้นไปถังขยะด้วย</p>
+          <label class="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-red-700 cursor-pointer">
+            <input type="checkbox" id="deleteCertificateResponses" class="mt-0.5">
+            <span>ลบข้อมูลการประเมินที่เกี่ยวข้องในชีต Responses ด้วย</span>
+          </label>
+          <p class="text-xs text-gray-500">ถ้าไม่เลือก ระบบจะเก็บผลประเมินเดิมไว้สำหรับสถิติและการส่งออก Excel</p>
+        </div>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'ลบรายชื่อ',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#dc2626',
         cancelButtonColor: '#6b7280',
-        reverseButtons: true
+        reverseButtons: true,
+        preConfirm: () => !!document.getElementById('deleteCertificateResponses')?.checked
       });
       if (!confirmed.isConfirmed) return;
+      const deleteResponses = !!confirmed.value;
       showLoading('กำลังลบรายชื่อ...');
-      const res = await callApi('deleteCertificate', { certNo }, 'POST');
+      const res = await callApi('deleteCertificate', { certNo, deleteResponses }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
-      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getDashboard'); loadCertificates(); }
+      if (res.success) { clearApiCache('getCertificates'); clearApiCache('getResults'); clearApiCache('getDashboard'); loadCertificates(); }
     }
 
     function openCertificateImport() {
