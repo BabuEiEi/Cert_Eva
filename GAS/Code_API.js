@@ -139,9 +139,16 @@ function getResponseCertNoSet_() {
 }
 
 function getCertificateStatus_(cert, responseCertNoSet) {
-  if (cert.fileUrl) return 'พร้อมดาวน์โหลด';
-  if (responseCertNoSet && responseCertNoSet[String(cert.certNo)]) return 'ประเมินแล้ว';
+  const hasResponse = responseCertNoSet && responseCertNoSet[String(cert.certNo)];
+  if (hasResponse && cert.fileUrl) return 'พร้อมดาวน์โหลด';
+  if (hasResponse) return 'ประเมินแล้ว';
   return 'ยังไม่ประเมิน';
+}
+
+function getCertificateStatusAfterResponse_(cert) {
+  const responseCertNoSet = {};
+  responseCertNoSet[String(cert.certNo)] = true;
+  return getCertificateStatus_(cert, responseCertNoSet);
 }
 
 function updateCertificateStatus_(sheet, rowIndex, status) {
@@ -393,9 +400,9 @@ function apiSubmitResponse_(params) {
       JSON.stringify(answersObj)
     ]);
 
-    // อัปเดตสถานะเกียรติบัตรอัตโนมัติ: มีไฟล์แล้ว = พร้อมดาวน์โหลด, ยังไม่มีไฟล์ = ประเมินแล้ว
+    // อัปเดตสถานะเกียรติบัตรอัตโนมัติตามตาราง: ประเมินแล้ว + มีไฟล์ = พร้อมดาวน์โหลด
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
-    const newStatus = cert.fileUrl ? 'พร้อมดาวน์โหลด' : 'ประเมินแล้ว';
+    const newStatus = getCertificateStatusAfterResponse_(cert);
     updateCertificateStatus_(certSheet, cert._rowIndex, newStatus);
 
     clearSheetCache_(SHEETS.RESPONSES);
@@ -779,7 +786,8 @@ function createCertificateFile_(cert) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
     updateCertificateFileInfo_(certSheet, cert._rowIndex, pdfUrl, new Date());
-    updateCertificateStatus_(certSheet, cert._rowIndex, 'พร้อมดาวน์โหลด');
+    const responseCertNoSet = getResponseCertNoSet_();
+    updateCertificateStatus_(certSheet, cert._rowIndex, getCertificateStatus_(Object.assign({}, cert, { fileUrl: pdfUrl }), responseCertNoSet));
     SpreadsheetApp.flush();
     clearSheetCache_(SHEETS.CERTIFICATES);
 
@@ -812,6 +820,7 @@ function apiRepairCertificateFiles_() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const certSheet = ss.getSheetByName(SHEETS.CERTIFICATES);
     const certs = readSheetAsObjects_(SHEETS.CERTIFICATES);
+    const responseCertNoSet = getResponseCertNoSet_();
     let linked = 0;
     let trashed = 0;
     let shareFailed = 0;
@@ -832,7 +841,7 @@ function apiRepairCertificateFiles_() {
             shareFailed++;
           }
           updateCertificateFileInfo_(certSheet, cert._rowIndex, pdfUrl, pdfFile.getDateCreated());
-          updateCertificateStatus_(certSheet, cert._rowIndex, 'พร้อมดาวน์โหลด');
+          updateCertificateStatus_(certSheet, cert._rowIndex, getCertificateStatus_(Object.assign({}, cert, { fileUrl: pdfUrl }), responseCertNoSet));
           linked++;
         }
       }
