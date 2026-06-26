@@ -1,10 +1,10 @@
 ---
 title: Cert Eva
-sdk: static
 emoji: 🏆
+colorFrom: blue
 colorTo: indigo
+sdk: static
 pinned: false
-short_description: ระบบจัดการเกียรติบัตรออนไลน์ (Cert EVA)
 ---
 
 # ระบบจัดการเกียรติบัตรออนไลน์ (Cert EVA)

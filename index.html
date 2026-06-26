@@ -118,8 +118,8 @@
     <!-- ============ Section 4: ผลลัพธ์/ดาวน์โหลด ============ -->
     <section id="downloadSection" class="bg-white rounded-2xl shadow-lg p-6 mb-6 hidden fade-in">
       <div class="text-center">
-        <div class="text-5xl mb-3">🎉</div>
-        <h2 class="text-xl font-bold text-gray-800 mb-2">เกียรติบัตรพร้อมดาวน์โหลด!</h2>
+        <div class="text-5xl mb-3" id="downloadIcon">🎉</div>
+        <h2 class="text-xl font-bold text-gray-800 mb-2" id="downloadTitle">เกียรติบัตรพร้อมดาวน์โหลด!</h2>
         <p class="text-gray-500 mb-4">เลขที่: <span id="dlCertNo" class="font-medium text-blue-600"></span></p>
 
         <!-- Preview -->
@@ -232,7 +232,7 @@
         body.innerHTML += `
           <tr class="border-b hover:bg-blue-50/50 transition">
             <td class="px-4 py-3 font-medium text-gray-700">${cert.certNo}</td>
-            <td class="px-4 py-3">${cert.prefix || ''}${cert.fullName}</td>
+            <td class="px-4 py-3">${cert.fullName}</td>
             <td class="px-4 py-3">${statusBadge}</td>
             <td class="px-4 py-3 text-center">${actionBtn}</td>
           </tr>`;
@@ -282,7 +282,7 @@
 
       // แสดงข้อมูลหัว
       document.getElementById('evalCertNo').textContent = currentCert.certNo;
-      document.getElementById('evalName').textContent = (currentCert.prefix || '') + currentCert.fullName;
+      document.getElementById('evalName').textContent = currentCert.fullName;
 
       renderQuestions();
 
@@ -424,7 +424,7 @@
       if (res.success) {
         showToast('บันทึกแบบประเมินสำเร็จ! 🎉', 'success');
         // ไป Section 4 (ดาวน์โหลด)
-        currentCert.status = 'พร้อมดาวน์โหลด';
+        currentCert.status = res.newStatus || 'ประเมินแล้ว';
         currentCert.fileUrl = res.fileUrl || currentCert.fileUrl;
         showDownloadSection(currentCert);
       } else {
@@ -451,19 +451,28 @@
       hideAllSections();
 
       document.getElementById('dlCertNo').textContent = cert.certNo;
+      const icon = document.getElementById('downloadIcon');
+      const title = document.getElementById('downloadTitle');
       const dlBtn = document.getElementById('downloadBtn');
-      const frame = document.getElementById('previewFrame');
+      const previewContainer = document.getElementById('previewContainer');
 
       if (cert.fileUrl) {
+        icon.textContent = '🎉';
+        title.textContent = 'เกียรติบัตรพร้อมดาวน์โหลด!';
+        previewContainer.innerHTML = '<iframe id="previewFrame" class="w-full" style="height: 450px; border: 0;" src=""></iframe>';
+        const frame = document.getElementById('previewFrame');
         // แปลง /view เป็น /preview สำหรับ iframe
         const previewUrl = cert.fileUrl.replace('/view', '/preview');
         frame.src = previewUrl;
         // ลิงก์ดาวน์โหลด
         dlBtn.href = cert.fileUrl;
-        document.getElementById('previewContainer').classList.remove('hidden');
+        previewContainer.classList.remove('hidden');
+        dlBtn.classList.remove('hidden');
       } else {
+        icon.textContent = '✓';
+        title.textContent = 'บันทึกแบบประเมินแล้ว';
         // ยังไม่มีไฟล์ (admin ยังไม่ได้สร้าง)
-        document.getElementById('previewContainer').innerHTML =
+        previewContainer.innerHTML =
           '<div class="flex items-center justify-center h-full text-gray-400 py-16">⏳ เกียรติบัตรกำลังจัดเตรียม กรุณาติดต่อผู้ดูแล</div>';
         dlBtn.classList.add('hidden');
       }

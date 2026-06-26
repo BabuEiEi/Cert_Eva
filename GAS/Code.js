@@ -55,14 +55,14 @@ function setupCertificatesSheet_(ss) {
   sheet.clear();
 
   // หัวคอลัมน์
-  const headers = ['runNo', 'certNo', 'prefix', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
+  const headers = ['runNo', 'certNo', 'fullName', 'school', 'status', 'fileUrl', 'createdAt'];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
   // ข้อมูลตัวอย่าง 3 รายการ (เก็บเป็นภาษาไทยปกติ)
   const sampleData = [
-    [1, 'สพม.พลอต 0001/2569', 'นาย', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
-    [2, 'สพม.พลอต 0002/2569', 'นางสาว', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
-    [3, 'สพม.พลอต 0003/2569', 'นาย', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
+    [1, 'เลขที่ สพม.พลอต ๐๐๐๑/๒๕๖๙', 'สมชาย ใจดี', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', ''],
+    [2, 'เลขที่ สพม.พลอต ๐๐๐๒/๒๕๖๙', 'สมหญิง รักเรียน', 'โรงเรียนบ้านหนองหอย', 'ยังไม่ประเมิน', '', ''],
+    [3, 'เลขที่ สพม.พลอต ๐๐๐๓/๒๕๖๙', 'วีระ ขยันยิ่ง', 'โรงเรียนวัดบางปลา', 'ยังไม่ประเมิน', '', '']
   ];
   sheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
 
@@ -155,13 +155,13 @@ function setupSettingsSheet_(ss) {
   const settings = [
     ['startNumber', 1, 'เลขรันนิ่งเริ่มต้นของเกียรติบัตร'],
     ['certCount', 100, 'จำนวนเกียรติบัตรทั้งหมด'],
-    ['certPrefix', 'สพม.พลอต {NO:0000}/2569', 'รูปแบบเลขที่เกียรติบัตร ({NO}=เลขรันนิ่ง, {NO:0000}=เติม 0, {YEAR}=ปี)'],
+    ['certPrefix', 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}', 'รูปแบบเลขที่เกียรติบัตร ({NO}=เลขอารบิก, {NO_TH}=เลขไทย, {NO_TH:๐๐๐๐}=เลขไทยเติม 0, {YEAR_TH}=ปีเลขไทย)'],
     ['folderId', '', '🔴 TODO: ใส่ ID โฟลเดอร์ Google Drive สำหรับเก็บไฟล์ PDF'],
     ['templateId', '', '🔴 TODO: ใส่ ID ไฟล์ Google Slides Template เกียรติบัตร'],
     ['sheetId', ss.getId(), 'ID ของ Spreadsheet นี้ (เติมให้อัตโนมัติแล้ว)'],
     ['projectName', 'โครงการฝึกอบรม ปี 2569', 'ชื่อโครงการ'],
     ['certDate', '21 มิถุนายน 2569', 'วันที่บนเกียรติบัตร'],
-    ['ratingYear', '2569', 'ปีที่ใช้ในรูปแบบ {YEAR}']
+    ['ratingYear', '2569', 'ปีที่ใช้ในรูปแบบ {YEAR} หรือ {YEAR_TH}']
   ];
   sheet.getRange(2, 1, settings.length, headers.length).setValues(settings);
 
@@ -273,16 +273,20 @@ function isLikelyBase64_(text) {
 function migrateBase64TextToThai() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const targets = [
-    { sheetName: SHEETS.CERTIFICATES, cols: [4, 5] },
-    { sheetName: SHEETS.RESPONSES, cols: [3, 4] }
+    { sheetName: SHEETS.CERTIFICATES, headers: ['fullName', 'school'] },
+    { sheetName: SHEETS.RESPONSES, headers: ['fullName', 'school'] }
   ];
   let changed = 0;
 
   targets.forEach(function (target) {
     const sheet = ss.getSheetByName(target.sheetName);
     if (!sheet || sheet.getLastRow() < 2) return;
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const cols = target.headers
+      .map(function (header) { return headers.indexOf(header) + 1; })
+      .filter(function (col) { return col > 0; });
 
-    target.cols.forEach(function (col) {
+    cols.forEach(function (col) {
       const range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
       const values = range.getValues();
       const updated = values.map(function (row) {
@@ -296,6 +300,31 @@ function migrateBase64TextToThai() {
   });
 
   SpreadsheetApp.getUi().alert('แปลงข้อมูล Base64 เป็นภาษาไทยปกติแล้ว ' + changed + ' ช่อง');
+}
+
+/**
+ * ย้าย schema Certificates เดิมที่มี prefix ให้เป็น schema ใหม่ที่ไม่มี prefix
+ * วิธีใช้: รันฟังก์ชันนี้ครั้งเดียวหลังอัปเดตโค้ด ถ้าชีตเดิมยังมีคอลัมน์ prefix
+ */
+function migrateCertificatesRemovePrefix() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('ไม่พบชีต Certificates');
+    return;
+  }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const prefixIndex = headers.indexOf('prefix');
+  if (prefixIndex === -1) {
+    SpreadsheetApp.getUi().alert('ชีต Certificates ไม่มีคอลัมน์ prefix อยู่แล้ว');
+    return;
+  }
+
+  sheet.deleteColumn(prefixIndex + 1);
+  SpreadsheetApp.flush();
+  if (typeof clearSheetCache_ === 'function') clearSheetCache_(SHEETS.CERTIFICATES);
+  SpreadsheetApp.getUi().alert('ลบคอลัมน์ prefix จากชีต Certificates เรียบร้อยแล้ว');
 }
 
 /**
@@ -317,12 +346,21 @@ function testEncodeDecode() {
 /**
  * ============================================================
  *  ฟังก์ชันสร้างเลขที่เกียรติบัตรจากรูปแบบ (certPrefix)
- *  รองรับ {NO}, {NO:0000}, {YEAR}
- *  ตัวอย่าง: 'สพม.พลอต {NO:0000}/2569' + runNo=5 => 'สพม.พลอต 0005/2569'
+ *  รองรับ {NO}, {NO:0000}, {NO_TH}, {NO_TH:๐๐๐๐}, {YEAR}, {YEAR_TH}
+ *  ตัวอย่าง: 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}' + runNo=5 => 'เลขที่ สพม.พลอต ๐๐๐๕/๒๕๖๙'
  * ============================================================
  */
 function buildCertNo_(pattern, runNo, year) {
   let result = pattern;
+
+  // แทน {NO_TH:๐๐๐๐} หรือ {NO_TH:0000} (เลขไทย เติม 0 ตามจำนวนหลัก)
+  result = result.replace(/\{NO_TH:([0๐]+)\}/g, function (match, zeros) {
+    const width = zeros.length;
+    return toThaiDigits_(String(runNo).padStart(width, '0'));
+  });
+
+  // แทน {NO_TH} (เลขไทย ไม่เติม 0)
+  result = result.replace(/\{NO_TH\}/g, toThaiDigits_(runNo));
 
   // แทน {NO:0000} (เติม 0 ตามจำนวนหลัก)
   result = result.replace(/\{NO:(0+)\}/g, function (match, zeros) {
@@ -335,14 +373,102 @@ function buildCertNo_(pattern, runNo, year) {
   // แทน {YEAR}
   result = result.replace(/\{YEAR\}/g, String(year || ''));
 
+  // แทน {YEAR_TH}
+  result = result.replace(/\{YEAR_TH\}/g, toThaiDigits_(year || ''));
+
   return result;
+}
+
+function toThaiDigits_(value) {
+  const map = {
+    '0': '๐', '1': '๑', '2': '๒', '3': '๓', '4': '๔',
+    '5': '๕', '6': '๖', '7': '๗', '8': '๘', '9': '๙'
+  };
+  return String(value).replace(/[0-9]/g, function (digit) {
+    return map[digit];
+  });
+}
+
+/**
+ * รันเลขที่เกียรติบัตรใหม่จาก Settings: startNumber, certCount, certPrefix, ratingYear
+ * วิธีใช้: รันฟังก์ชันนี้จาก Apps Script หรือเรียกผ่านหน้า Admin
+ */
+function regenerateCertificateNumbers() {
+  const result = regenerateCertificateNumbers_();
+  SpreadsheetApp.getUi().alert(result.message);
+  return result;
+}
+
+function regenerateCertificateNumbers_() {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const settings = getSettingsMapForNumbering_();
+    const startNumber = Number(settings.startNumber) || 1;
+    const certCount = Number(settings.certCount) || 0;
+    const certPrefix = settings.certPrefix || 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}';
+    const year = settings.ratingYear || '';
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+    if (!sheet) return { success: false, message: 'ไม่พบชีต Certificates' };
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ยังไม่มีรายชื่อเกียรติบัตรให้รันเลข' };
+
+    const existingRowCount = lastRow - 1;
+    const rowCount = certCount > 0 ? Math.min(existingRowCount, certCount) : existingRowCount;
+    const values = [];
+
+    for (let i = 0; i < rowCount; i++) {
+      const runNo = startNumber + i;
+      const certNo = buildCertNo_(certPrefix, runNo, year);
+      values.push([runNo, certNo]);
+    }
+
+    sheet.getRange(2, 1, values.length, 2).setValues(values);
+    SpreadsheetApp.flush();
+
+    if (typeof clearSheetCache_ === 'function') clearSheetCache_(SHEETS.CERTIFICATES);
+
+    const skipped = existingRowCount - rowCount;
+    return {
+      success: true,
+      message: 'รันเลขเกียรติบัตรใหม่สำเร็จ ' + rowCount + ' รายการ' + (skipped > 0 ? ' (ไม่ได้รัน ' + skipped + ' รายการ เพราะเกิน certCount)' : ''),
+      updated: rowCount,
+      skipped: skipped,
+      startNumber: startNumber,
+      certPrefix: certPrefix,
+      ratingYear: year
+    };
+
+  } catch (err) {
+    return { success: false, message: 'รันเลขเกียรติบัตรไม่สำเร็จ: ' + err.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getSettingsMapForNumbering_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEETS.SETTINGS);
+  if (!sheet || sheet.getLastRow() < 2) return {};
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  const map = {};
+  values.forEach(function (row) {
+    map[row[0]] = row[1];
+  });
+  return map;
 }
 
 /**
  * ฟังก์ชันทดสอบ: สร้างเลขที่เกียรติบัตร
  */
 function testBuildCertNo() {
-  Logger.log(buildCertNo_('สพม.พลอต {NO:0000}/2569', 5));   // สพม.พลอต 0005/2569
-  Logger.log(buildCertNo_('สพม.พลอต {NO}/2569', 5));        // สพม.พลอต 5/2569
+  Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO:0000}/2569', 5));   // เลขที่ สพม.พลอต 0005/2569
+  Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO}/2569', 5));        // เลขที่ สพม.พลอต 5/2569
+  Logger.log(buildCertNo_('เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}', 5, 2569)); // เลขที่ สพม.พลอต ๐๐๐๕/๒๕๖๙
   Logger.log(buildCertNo_('CERT-{NO:000}-{YEAR}', 12, 2569)); // CERT-012-2569
 }

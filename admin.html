@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบผู้ดูแล - เกียรติบัตร</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Sarabun', sans-serif; }
@@ -123,15 +124,12 @@
     </div>
   </div>
 
-  <!-- ============ Loading + Toast ============ -->
+  <!-- ============ Loading ============ -->
   <div id="loading" class="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] hidden">
     <div class="bg-white rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-2xl">
       <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       <p class="text-gray-600 font-medium" id="loadingText">กำลังโหลด...</p>
     </div>
-  </div>
-  <div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
-    <div id="toastBox" class="px-5 py-3 rounded-xl shadow-lg text-white font-medium"></div>
   </div>
 
   <script>
@@ -179,11 +177,30 @@
     function showLoading(t = 'กำลังโหลด...') { document.getElementById('loadingText').textContent = t; document.getElementById('loading').classList.remove('hidden'); }
     function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
     function showToast(msg, type = 'success') {
-      const box = document.getElementById('toastBox');
-      box.className = 'px-5 py-3 rounded-xl shadow-lg text-white font-medium ' + (type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600');
-      box.textContent = (type === 'success' ? '✓ ' : type === 'error' ? '✕ ' : 'ℹ ') + msg;
-      document.getElementById('toast').classList.remove('hidden');
-      setTimeout(() => document.getElementById('toast').classList.add('hidden'), 3500);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success',
+        title: msg,
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+        customClass: { popup: 'text-sm' }
+      });
+    }
+    async function confirmAction(title, text, confirmButtonText = 'ตกลง') {
+      const result = await Swal.fire({
+        title: title,
+        text: text,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: confirmButtonText,
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#6b7280',
+        reverseButtons: true
+      });
+      return result.isConfirmed;
     }
 
     // ============ Login / Logout ============
@@ -306,7 +323,7 @@
         rows += `<tr class="border-b hover:bg-gray-50">
           <td class="px-4 py-3">${c.runNo}</td>
           <td class="px-4 py-3 font-medium">${c.certNo}</td>
-          <td class="px-4 py-3">${c.prefix || ''}${c.fullName}</td>
+          <td class="px-4 py-3">${c.fullName}</td>
           <td class="px-4 py-3 text-gray-600">${c.school}</td>
           <td class="px-4 py-3">${badge}</td>
           <td class="px-4 py-3 text-center">${fileBtn}</td>
@@ -345,7 +362,8 @@
     }
 
     async function genAll() {
-      if (!confirm('ต้องการสร้างเกียรติบัตรทั้งหมดที่ยังไม่มีไฟล์ใช่หรือไม่?\n(อาจใช้เวลาสักครู่)')) return;
+      const confirmed = await confirmAction('สร้างเกียรติบัตรทั้งหมด?', 'ระบบจะสร้างเฉพาะรายการที่ยังไม่มีไฟล์ และอาจใช้เวลาสักครู่', 'สร้างทั้งหมด');
+      if (!confirmed) return;
       showLoading('กำลังสร้างเกียรติบัตรทั้งหมด...');
       const res = await callApi('generateAll');
       hideLoading();
@@ -499,7 +517,8 @@
     }
 
     async function deleteQuestion(questionId) {
-      if (!confirm('ต้องการลบคำถามนี้ใช่หรือไม่?')) return;
+      const confirmed = await confirmAction('ลบคำถามนี้?', 'ระบบจะตั้งคำถามนี้เป็นไม่ใช้งาน โดยไม่ลบข้อมูลเดิมออกจากชีต', 'ลบคำถาม');
+      if (!confirmed) return;
       showLoading('กำลังลบ...');
       const res = await callApi('deleteQuestion', { questionId }, 'POST');
       hideLoading();
@@ -632,12 +651,16 @@
           <form onsubmit="saveSettings(event)" class="space-y-4">
             ${settingInput('projectName', 'ชื่อโครงการ', s.projectName)}
             ${settingInput('certDate', 'วันที่บนเกียรติบัตร', s.certDate)}
-            ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขรันนิ่ง)', s.certPrefix)}
+            ${settingInput('certPrefix', 'รูปแบบเลขที่ ({NO:0000}=เลขอารบิก, {NO_TH:๐๐๐๐}=เลขไทย)', s.certPrefix)}
             ${settingInput('startNumber', 'เลขเริ่มต้น', s.startNumber)}
             ${settingInput('certCount', 'จำนวนเกียรติบัตร', s.certCount)}
+            ${settingInput('ratingYear', 'ปีที่ใช้ในเลขที่ ({YEAR} / {YEAR_TH})', s.ratingYear)}
             ${settingInput('folderId', 'Drive Folder ID', s.folderId)}
             ${settingInput('templateId', 'Slides Template ID', s.templateId)}
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium">💾 บันทึกการตั้งค่า</button>
+            <div class="flex flex-col sm:flex-row gap-3">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium">💾 บันทึกการตั้งค่า</button>
+              <button type="button" onclick="regenerateCertNumbers()" class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2.5 rounded-xl font-medium">🔢 รันเลขเกียรติบัตรใหม่</button>
+            </div>
           </form>
         </div>
         <div class="bg-white rounded-2xl shadow p-6 max-w-2xl">
@@ -656,14 +679,35 @@
 
     async function saveSettings(event) {
       event.preventDefault();
-      const keys = ['projectName', 'certDate', 'certPrefix', 'startNumber', 'certCount', 'folderId', 'templateId'];
-      const settings = {};
-      keys.forEach(k => settings[k] = document.getElementById('set_' + k).value);
+      const settings = getSettingsFormValues();
       showLoading('กำลังบันทึก...');
       const res = await callApi('saveSettings', { settings }, 'POST');
       hideLoading();
       showToast(res.message, res.success ? 'success' : 'error');
       if (res.success) clearApiCache('getSettings');
+    }
+
+    function getSettingsFormValues() {
+      const keys = ['projectName', 'certDate', 'certPrefix', 'startNumber', 'certCount', 'ratingYear', 'folderId', 'templateId'];
+      const settings = {};
+      keys.forEach(k => settings[k] = document.getElementById('set_' + k).value);
+      return settings;
+    }
+
+    async function regenerateCertNumbers() {
+      const confirmed = await confirmAction('รันเลขเกียรติบัตรใหม่?', 'ระบบจะเขียนทับคอลัมน์ runNo และ certNo ในชีต Certificates ตามค่า Settings ปัจจุบัน', 'รันเลขใหม่');
+      if (!confirmed) return;
+      showLoading('กำลังบันทึกและรันเลขเกียรติบัตร...');
+      const saveRes = await callApi('saveSettings', { settings: getSettingsFormValues() }, 'POST');
+      if (!saveRes.success) {
+        hideLoading();
+        showToast(saveRes.message, 'error');
+        return;
+      }
+      const res = await callApi('regenerateCertificateNumbers', {}, 'POST');
+      hideLoading();
+      showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) { clearApiCache('getSettings'); clearApiCache('getCertificates'); clearApiCache('getDashboard'); }
     }
 
     async function loadUsers() {
