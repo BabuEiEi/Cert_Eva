@@ -142,6 +142,7 @@
     let currentUser = { role: '', displayName: '' };
     let currentPage = 'dashboard';
     let questionsData = [];
+    let resultsData = null;
 
     // ============ ฟังก์ชันเรียก API ============
     async function callApi(action, params = {}, method = 'GET') {
@@ -695,13 +696,19 @@
       el.innerHTML = '<div class="text-center py-10 text-gray-400">กำลังคำนวณ...</div>';
       const res = await callApiCached('getResults');
       if (!res.success) { el.innerHTML = '<p class="text-red-500">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+      resultsData = res;
 
       if (res.totalResponses === 0) {
         el.innerHTML = '<div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400"><div class="text-4xl mb-2">📭</div>ยังไม่มีผู้ทำแบบประเมิน</div>';
         return;
       }
 
-      let html = `<div class="bg-blue-600 text-white rounded-2xl shadow p-5 mb-6">
+      let html = `<div class="flex justify-end mb-4">
+        <button onclick="exportResultsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+          <span>⬇️</span> ส่งออก Excel
+        </button>
+      </div>
+      <div class="bg-blue-600 text-white rounded-2xl shadow p-5 mb-6">
         <p class="text-sm opacity-90">จำนวนผู้ตอบแบบประเมินทั้งหมด</p>
         <p class="text-3xl font-bold">${res.totalResponses} คน</p>
       </div>`;
@@ -789,6 +796,121 @@
       });
 
       el.innerHTML = html;
+    }
+
+    function exportResultsExcel() {
+      if (!resultsData || !resultsData.totalResponses) { showToast('ยังไม่มีข้อมูลผลการประเมินสำหรับส่งออก', 'error'); return; }
+      if (!window.XLSX) { showToast('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error'); return; }
+
+      const workbook = XLSX.utils.book_new();
+      appendSheet(workbook, 'สรุปภาพรวม', buildOverviewExportRows(resultsData));
+      appendSheet(workbook, 'ตอนที่ 1', buildPart1ExportRows(resultsData));
+      appendSheet(workbook, 'ตอนที่ 2 รายข้อ', buildPart2ItemsExportRows(resultsData));
+      appendSheet(workbook, 'ตอนที่ 2 รายด้าน', buildPart2CategoryExportRows(resultsData));
+      appendSheet(workbook, 'ตอนที่ 3', buildPart3ExportRows(resultsData));
+      appendSheet(workbook, 'คำตอบรายคน', buildResponseExportRows(resultsData));
+
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      XLSX.writeFile(workbook, `evaluation-results-${stamp}.xlsx`);
+    }
+
+    function appendSheet(workbook, name, rows) {
+      const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ ข้อมูล: 'ไม่มีข้อมูล' }]);
+      XLSX.utils.book_append_sheet(workbook, sheet, name);
+    }
+
+    function buildOverviewExportRows(data) {
+      const overall = data.part2 && data.part2.overall ? data.part2.overall : {};
+      return [
+        { รายการ: 'จำนวนผู้ตอบแบบประเมินทั้งหมด', ค่า: data.totalResponses, หน่วย: 'คน' },
+        { รายการ: 'ค่าเฉลี่ยรวมตอนที่ 2', ค่า: numberText(overall.mean), หน่วย: 'คะแนน' },
+        { รายการ: 'S.D. รวมตอนที่ 2', ค่า: numberText(overall.sd), หน่วย: '' },
+        { รายการ: 'ระดับผลรวมตอนที่ 2', ค่า: overall.interpret || '', หน่วย: '' }
+      ];
+    }
+
+    function buildPart1ExportRows(data) {
+      const rows = [];
+      (data.part1 || []).forEach(q => {
+        (q.options || []).forEach(option => rows.push({
+          questionId: q.questionId,
+          คำถาม: q.questionText,
+          ตัวเลือก: option.label,
+          จำนวน: option.count,
+          ร้อยละ: option.percent
+        }));
+      });
+      return rows;
+    }
+
+    function buildPart2ItemsExportRows(data) {
+      return ((data.part2 && data.part2.items) || []).map(item => ({
+        questionId: item.questionId,
+        หมวด: item.category,
+        รายการประเมิน: item.questionText,
+        n: item.n,
+        ค่าเฉลี่ย: numberText(item.mean),
+        SD: numberText(item.sd),
+        ระดับ: item.interpret
+      }));
+    }
+
+    function buildPart2CategoryExportRows(data) {
+      const rows = ((data.part2 && data.part2.byCategory) || []).map(item => ({
+        หมวด: item.category,
+        n: item.n,
+        ค่าเฉลี่ย: numberText(item.mean),
+        SD: numberText(item.sd),
+        ระดับ: item.interpret
+      }));
+      const overall = data.part2 && data.part2.overall;
+      if (overall) rows.push({ หมวด: 'ภาพรวม', n: overall.n, ค่าเฉลี่ย: numberText(overall.mean), SD: numberText(overall.sd), ระดับ: overall.interpret });
+      return rows;
+    }
+
+    function buildPart3ExportRows(data) {
+      const rows = [];
+      (data.part3 || []).forEach(q => {
+        if (!q.answers || q.answers.length === 0) {
+          rows.push({ questionId: q.questionId, คำถาม: q.questionText, ลำดับ: '', คำตอบ: '' });
+        } else {
+          q.answers.forEach((answer, index) => rows.push({
+            questionId: q.questionId,
+            คำถาม: q.questionText,
+            ลำดับ: index + 1,
+            คำตอบ: answer
+          }));
+        }
+      });
+      return rows;
+    }
+
+    function buildResponseExportRows(data) {
+      const questions = data.questions || [];
+      return (data.responses || []).map(response => {
+        const row = {
+          เวลา: response.timestamp || '',
+          เลขที่เกียรติบัตร: response.certNo || '',
+          ชื่อ: response.fullName || '',
+          โรงเรียน: response.school || ''
+        };
+        questions.forEach(question => {
+          row[`${question.questionId} ${question.questionText}`] = formatAnswerForExport(response.answers ? response.answers[question.questionId] : '');
+        });
+        return row;
+      });
+    }
+
+    function formatAnswerForExport(value) {
+      if (value === undefined || value === null) return '';
+      if (Array.isArray(value)) return value.join(', ');
+      return value;
+    }
+
+    function numberText(value) {
+      const n = Number(value);
+      return isNaN(n) ? '' : Math.round(n * 100) / 100;
     }
 
     // ============================================================

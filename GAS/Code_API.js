@@ -900,6 +900,26 @@ function apiGetResults_() {
   const allAnswers = responses.map(function (r) {
     try { return JSON.parse(r.answersJSON); } catch (e) { return {}; }
   });
+  const responseDetails = responses.map(function (r, index) {
+    return {
+      timestamp: formatDateForExport_(r.timestamp),
+      certNo: r.certNo,
+      fullName: decodeText_(r.fullName),
+      school: decodeText_(r.school),
+      answers: allAnswers[index] || {}
+    };
+  });
+  const questionDetails = questions.map(function (q) {
+    return {
+      questionId: q.questionId,
+      part: q.part,
+      section: q.section,
+      category: q.category,
+      questionText: q.questionText,
+      questionType: q.questionType,
+      orderNo: Number(q.orderNo)
+    };
+  });
 
   const totalResponses = allAnswers.length;
 
@@ -1011,8 +1031,18 @@ function apiGetResults_() {
         interpret: interpretMean_(overallStat.mean)
       }
     },
-    part3: part3
+    part3: part3,
+    questions: questionDetails,
+    responses: responseDetails
   };
+}
+
+function formatDateForExport_(value) {
+  if (!value) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  }
+  return String(value);
 }
 
 /**
