@@ -49,6 +49,7 @@ function handleRequest_(e) {
       case 'checkStatus': result = apiCheckStatus_(params); break;
       case 'submitResponse': result = apiSubmitResponse_(params); break;
       case 'getCertificates': result = apiGetCertificates_(); break;
+      case 'importCertificates': result = apiImportCertificates_(params); break;
       case 'generateCertificate': result = apiGenerateCertificate_(params); break;
       case 'generateAll': result = apiGenerateAll_(); break;
       case 'regenerateCertificateNumbers': result = apiRegenerateCertificateNumbers_(); break;
@@ -432,6 +433,81 @@ function apiGetCertificates_() {
     };
   });
   return { success: true, count: data.length, data: data };
+}
+
+/**
+ * ============================================================
+ *  API: importCertificates (นำเข้ารายชื่อจาก CSV/Excel — สำหรับ Admin/Staff)
+ * ============================================================
+ */
+function apiImportCertificates_(params) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+
+    let rows = params.rows || [];
+    if (typeof rows === 'string') rows = JSON.parse(rows);
+    if (!Array.isArray(rows) || rows.length === 0) return { success: false, message: 'ไม่พบข้อมูลสำหรับนำเข้า' };
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEETS.CERTIFICATES);
+    if (!sheet) return { success: false, message: 'ไม่พบชีต Certificates' };
+
+    const existing = readSheetAsObjects_(SHEETS.CERTIFICATES);
+    const existingCertNos = {};
+    let maxRunNo = 0;
+    existing.forEach(function (cert) {
+      if (cert.certNo) existingCertNos[String(cert.certNo)] = true;
+      const runNo = Number(cert.runNo);
+      if (!isNaN(runNo) && runNo > maxRunNo) maxRunNo = runNo;
+    });
+
+    const settings = getSettingsMap_();
+    const certPrefix = settings.certPrefix || 'เลขที่ สพม.พลอต {NO_TH:๐๐๐๐}/{YEAR_TH}';
+    const year = settings.ratingYear || '';
+    let nextRunNo = maxRunNo > 0 ? maxRunNo + 1 : (Number(settings.startNumber) || 1);
+
+    const values = [];
+    let skipped = 0;
+    rows.forEach(function (item) {
+      const fullName = String(item.fullName || item.name || '').trim();
+      const school = String(item.school || '').trim();
+      if (!fullName) { skipped++; return; }
+
+      const runNo = Number(item.runNo) || nextRunNo;
+      const certNo = String(item.certNo || buildCertNo_(certPrefix, runNo, year)).trim();
+      if (existingCertNos[certNo]) { skipped++; return; }
+
+      existingCertNos[certNo] = true;
+      values.push([
+        runNo,
+        certNo,
+        fullName,
+        school,
+        item.status || 'ยังไม่ประเมิน',
+        item.fileUrl || '',
+        item.createdAt || ''
+      ]);
+      if (runNo >= nextRunNo) nextRunNo = runNo + 1;
+    });
+
+    if (values.length === 0) return { success: false, message: 'ไม่มีรายการที่นำเข้าได้' + (skipped ? ' (ข้าม ' + skipped + ' รายการ)' : '') };
+
+    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, 7).setValues(values);
+    SpreadsheetApp.flush();
+    clearSheetCache_(SHEETS.CERTIFICATES);
+
+    return {
+      success: true,
+      message: 'นำเข้ารายชื่อสำเร็จ ' + values.length + ' รายการ' + (skipped ? ', ข้าม ' + skipped + ' รายการ' : ''),
+      imported: values.length,
+      skipped: skipped
+    };
+  } catch (err) {
+    return { success: false, message: 'นำเข้าไม่สำเร็จ: ' + err.message };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
